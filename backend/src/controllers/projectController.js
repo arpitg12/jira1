@@ -1,5 +1,13 @@
 import Project from '../models/Project.js';
 
+const workflowPopulate = {
+  path: 'workflow',
+  populate: [
+    { path: 'states', select: 'name color description isActive' },
+    { path: 'defaultState', select: 'name color description isActive' },
+  ],
+};
+
 export const createProject = async (req, res) => {
   try {
     const { name, description, workflow } = req.body;
@@ -15,7 +23,7 @@ export const createProject = async (req, res) => {
     });
 
     await project.save();
-    await project.populate('workflow');
+    await project.populate(workflowPopulate);
     res.status(201).json({ message: 'Project created successfully', project });
   } catch (error) {
     if (error.code === 11000) {
@@ -27,7 +35,7 @@ export const createProject = async (req, res) => {
 
 export const getProjects = async (req, res) => {
   try {
-    const projects = await Project.find({ active: true }).populate('workflow');
+    const projects = await Project.find({ active: true }).populate(workflowPopulate);
     res.json(projects);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -36,7 +44,7 @@ export const getProjects = async (req, res) => {
 
 export const getProjectById = async (req, res) => {
   try {
-    const project = await Project.findById(req.params.id).populate('workflow');
+    const project = await Project.findById(req.params.id).populate(workflowPopulate);
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });
     }
@@ -58,7 +66,7 @@ export const updateProject = async (req, res) => {
         active: active !== undefined ? active : undefined,
       },
       { new: true, runValidators: true }
-    ).populate('workflow');
+    ).populate(workflowPopulate);
 
     if (!project) {
       return res.status(404).json({ error: 'Project not found' });

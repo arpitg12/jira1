@@ -12,6 +12,8 @@ import {
   getUsers,
 } from '../../services/api';
 
+const DEFAULT_STATUS_OPTIONS = ['To Do', 'In Progress', 'In Review', 'Done'];
+
 const ProjectDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -195,7 +197,10 @@ const ProjectDetail = () => {
     setFilters({ status: '', priority: '', assignee: '' });
   };
 
-  const statusOptions = ['To Do', 'In Progress', 'In Review', 'Done'];
+  const statusOptions =
+    project?.workflow?.states?.map((state) => state?.name).filter(Boolean) || [];
+  const resolvedStatusOptions =
+    statusOptions.length > 0 ? statusOptions : DEFAULT_STATUS_OPTIONS;
   const priorityOptions = ['Low', 'Medium', 'High', 'Critical'];
 
   const priorityColors = {
@@ -313,7 +318,7 @@ const ProjectDetail = () => {
                   className="w-full px-2 py-1 border border-gray-300 rounded focus:border-primary outline-none text-xs"
                 >
                   <option value="">All Status</option>
-                  {statusOptions.map((status) => (
+                  {resolvedStatusOptions.map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>
@@ -383,88 +388,101 @@ const ProjectDetail = () => {
           </div>
         </Card>
 
-        {/* Issues List */}
-        <div className="space-y-2">
-          {filteredIssues.length > 0 ? (
-            filteredIssues.map((issue) => (
-              <Card key={issue._id} className="group relative hover:shadow-sm transition cursor-pointer hover:bg-gray-50">
-                <div
-                  className="flex items-start justify-between gap-3"
-                  onClick={() => navigate(`/admin/issue/${issue._id}`)}
-                >
-                  <div className="flex-1 min-w-0">
-                    <div className="flex items-center gap-2 mb-1 flex-wrap">
-                      <span className="text-xs font-bold text-gray-500 whitespace-nowrap">
-                        {issue.issueId}
-                      </span>
-                      <span className="text-xs px-1.5 py-0.5 bg-blue-100 text-blue-700 rounded whitespace-nowrap">
-                        {issue.issueType}
-                      </span>
-                      <span className={`text-xs px-1.5 py-0.5 font-semibold whitespace-nowrap ${priorityColors[issue.priority]}`}>
-                        {issue.priority}
-                      </span>
-                      <span className={`text-xs px-1.5 py-0.5 rounded whitespace-nowrap ${statusColors[issue.status]}`}>
-                        {issue.status}
-                      </span>
-                    </div>
-                    <h3 className="text-sm font-semibold text-dark mb-1 truncate hover:underline">{issue.title}</h3>
-                    {issue.description && (
-                      <p className="text-xs text-gray-600 line-clamp-1 mb-1">
-                        {issue.description}
-                      </p>
-                    )}
-                    <div className="flex items-center gap-3 text-xs text-gray-600">
-                      {issue.assignee && (
-                        <span>
-                          Assigned: <span className="font-semibold text-dark">{issue.assignee.username}</span>
-                        </span>
-                      )}
-                      {issue.reviewAssignee && (
-                        <span>
-                          Reviewer: <span className="font-semibold text-dark">{issue.reviewAssignee.username}</span>
-                        </span>
-                      )}
-                    </div>
-                  </div>
-                </div>
+        {/* Issues Table */}
+        <div className="ui-dark-surface ui-shadow p-3">
+          <div className="flex items-center justify-between mb-2">
+            <h2 className="text-sm font-semibold text-white/90">Project Issues</h2>
+            <span className="text-xs text-white/50">
+              {filteredIssues.length} visible
+            </span>
+          </div>
 
-                {/* Compact actions (top-right) */}
-                <div
-                  className="absolute top-2 right-2 flex items-center gap-1 opacity-100 md:opacity-0 md:group-hover:opacity-100 transition"
-                  onClick={(e) => e.stopPropagation()}
-                >
-                  <Button
-                    variant="secondary"
-                    size="sm"
-                    title="Edit"
-                    aria-label="Edit"
-                    onClick={() => openEditIssue(issue)}
-                    className="!px-2 !py-1"
-                  >
-                    <IoPencil size={14} />
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    title="Delete"
-                    aria-label="Delete"
-                    onClick={() => handleDeleteIssue(issue._id)}
-                    className="!px-2 !py-1"
-                  >
-                    <IoTrash size={14} />
-                  </Button>
-                </div>
-              </Card>
-            ))
-          ) : (
-            <Card>
-              <div className="text-center py-6 text-gray-500 text-sm">
-                {issues.length === 0
-                  ? 'No issues in this project yet. Create one to get started!'
-                  : 'No issues match your search or filters.'}
-              </div>
-            </Card>
-          )}
+          <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/5">
+            <table className="ui-dark-table">
+              <thead className="ui-dark-thead">
+                <tr>
+                  <th className="px-3 py-2 text-left font-semibold">Issue ID</th>
+                  <th className="px-3 py-2 text-left font-semibold">Issue Name</th>
+                  <th className="px-3 py-2 text-left font-semibold">Priority</th>
+                  <th className="px-3 py-2 text-left font-semibold">Status</th>
+                  <th className="px-3 py-2 text-left font-semibold">Assignee</th>
+                  <th className="px-3 py-2 text-left font-semibold">Review Assignee</th>
+                  <th className="px-3 py-2 text-left font-semibold">Reporter</th>
+                  <th className="px-3 py-2 text-left font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredIssues.length > 0 ? (
+                  filteredIssues.map((issue) => (
+                    <tr
+                      key={issue._id}
+                      className="ui-dark-tr cursor-pointer"
+                      onClick={() => navigate(`/admin/issue/${issue._id}`)}
+                    >
+                      <td className="px-3 py-2 text-xs font-semibold text-white/55 whitespace-nowrap">
+                        {issue.issueId}
+                      </td>
+                      <td className="px-3 py-2">
+                        <div className="min-w-[180px]">
+                          <p className="text-sm font-semibold text-white truncate">{issue.title}</p>
+                          <p className="text-xs text-white/40">{issue.issueType}</p>
+                        </div>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs font-semibold whitespace-nowrap ${priorityColors[issue.priority]}`}>
+                          {issue.priority}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2">
+                        <span className={`text-xs px-2 py-1 rounded-md whitespace-nowrap ${statusColors[issue.status]}`}>
+                          {issue.status}
+                        </span>
+                      </td>
+                      <td className="px-3 py-2 text-sm text-white/75 whitespace-nowrap">
+                        {issue.assignee?.username || 'Unassigned'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-white/75 whitespace-nowrap">
+                        {issue.reviewAssignee?.username || 'Unassigned'}
+                      </td>
+                      <td className="px-3 py-2 text-sm text-white/75 whitespace-nowrap">
+                        {issue.reporter?.username || 'Unassigned'}
+                      </td>
+                      <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
+                        <div className="flex items-center gap-2">
+                          <button
+                            type="button"
+                            title="Edit"
+                            aria-label="Edit"
+                            onClick={() => openEditIssue(issue)}
+                            className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10"
+                          >
+                            <IoPencil size={16} className="text-white/70" />
+                          </button>
+                          <button
+                            type="button"
+                            title="Delete"
+                            aria-label="Delete"
+                            onClick={() => handleDeleteIssue(issue._id)}
+                            className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10"
+                          >
+                            <IoTrash size={16} className="text-red-300" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  ))
+                ) : (
+                  <tr>
+                    <td colSpan="8" className="px-3 py-10 text-center text-white/50 text-sm">
+                      {issues.length === 0
+                        ? 'No issues in this project yet. Create one to get started!'
+                        : 'No issues match your search or filters.'}
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
         </div>
 
         {/* Create Issue Modal */}
@@ -554,7 +572,7 @@ const ProjectDetail = () => {
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
                 >
-                  {statusOptions.map((status) => (
+                  {resolvedStatusOptions.map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>
@@ -730,7 +748,7 @@ const ProjectDetail = () => {
                   }
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
                 >
-                  {statusOptions.map((status) => (
+                  {resolvedStatusOptions.map((status) => (
                     <option key={status} value={status}>
                       {status}
                     </option>

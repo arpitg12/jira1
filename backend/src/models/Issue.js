@@ -1,5 +1,38 @@
 import mongoose from 'mongoose';
 
+const replySchema = new mongoose.Schema(
+  {
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+  },
+  { _id: true, timestamps: true }
+);
+
+const commentSchema = new mongoose.Schema(
+  {
+    author: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
+    text: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    replies: [replySchema],
+  },
+  { _id: true, timestamps: true }
+);
+
 const issueSchema = new mongoose.Schema(
   {
     issueId: {
@@ -49,24 +82,7 @@ const issueSchema = new mongoose.Schema(
       ref: 'Project',
       required: true,
     },
-    comments: [
-      {
-        author: {
-          type: mongoose.Schema.Types.ObjectId,
-          ref: 'User',
-          default: null,
-        },
-        text: {
-          type: String,
-          required: true,
-          trim: true,
-        },
-        createdAt: {
-          type: Date,
-          default: Date.now,
-        },
-      },
-    ],
+    comments: [commentSchema],
     attachments: [String],
     customFields: mongoose.Schema.Types.Mixed,
   },

@@ -12,6 +12,8 @@ import {
   getUsers,
 } from '../../services/api';
 
+const DEFAULT_STATUS_OPTIONS = ['To Do', 'In Progress', 'In Review', 'Done'];
+
 const Issues = () => {
   const navigate = useNavigate();
   const [issues, setIssues] = useState([]);
@@ -37,6 +39,14 @@ const Issues = () => {
     project: '',
   });
   const [selectedIssue, setSelectedIssue] = useState(null);
+
+  const getWorkflowStatusOptionsForProject = (projectId) => {
+    const selectedProject = projects.find((project) => project._id === projectId);
+    const workflowStatuses =
+      selectedProject?.workflow?.states?.map((state) => state?.name).filter(Boolean) || [];
+
+    return workflowStatuses.length > 0 ? workflowStatuses : DEFAULT_STATUS_OPTIONS;
+  };
 
   useEffect(() => {
     fetchData();
@@ -619,10 +629,11 @@ const Issues = () => {
                 }
                 className="w-full"
               >
-                <option value="To Do">To Do</option>
-                <option value="In Progress">In Progress</option>
-                <option value="In Review">In Review</option>
-                <option value="Done">Done</option>
+                {getWorkflowStatusOptionsForProject(issueForm.project).map((status) => (
+                  <option key={status} value={status}>
+                    {status}
+                  </option>
+                ))}
               </select>
             </div>
             <div className="grid grid-cols-1 md:grid-cols-3 gap-4">

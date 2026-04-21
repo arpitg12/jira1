@@ -120,3 +120,31 @@ export const addComment = (id, data) =>
     method: 'POST',
     body: JSON.stringify(data),
   });
+
+export const updateComment = (issueId, commentId, data) =>
+  apiCall(`/issues/${issueId}/comments/${commentId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const deleteComment = (issueId, commentId) =>
+  apiCall(`/issues/${issueId}/comments/${commentId}`, {
+    method: 'DELETE',
+  });
+
+export const addReply = (issueId, commentId, data) =>
+  apiCall(`/issues/${issueId}/comments/${commentId}/replies`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const updateReply = (issueId, commentId, replyId, data) =>
+  apiCall(`/issues/${issueId}/comments/${commentId}/replies/${replyId}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const deleteReply = (issueId, commentId, replyId) =>
+  apiCall(`/issues/${issueId}/comments/${commentId}/replies/${replyId}`, {
+    method: 'DELETE',
+  });
