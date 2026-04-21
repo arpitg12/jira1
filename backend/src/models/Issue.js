@@ -39,6 +39,11 @@ const issueSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    reporter: {
+      type: mongoose.Schema.Types.ObjectId,
+      ref: 'User',
+      default: null,
+    },
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Project',
@@ -49,8 +54,13 @@ const issueSchema = new mongoose.Schema(
         author: {
           type: mongoose.Schema.Types.ObjectId,
           ref: 'User',
+          default: null,
         },
-        text: String,
+        text: {
+          type: String,
+          required: true,
+          trim: true,
+        },
         createdAt: {
           type: Date,
           default: Date.now,

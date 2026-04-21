@@ -19,7 +19,7 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
           <h2 className="text-base font-bold text-white">{title}</h2>
           <button
             onClick={onClose}
-            className="text-white/50 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/8"
+            className="text-white/50 hover:text-white transition-colors p-1 rounded-lg hover:bg-white/10"
           >
             <IoClose size={20} />
           </button>
@@ -31,3 +31,4 @@ export const Modal = ({ isOpen, onClose, title, children, size = 'md' }) => {
     </div>
   );
 };
+

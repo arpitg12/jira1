@@ -106,7 +106,7 @@ html, body, #root {
   }
 
   .ui-dark-surface-strong {
-    @apply bg-white/8 border border-white/10 rounded-2xl;
+    @apply bg-white/10 border border-white/10 rounded-2xl;
   }
 
   .ui-dark-text-muted {
@@ -162,3 +162,4 @@ html, body, #root {
 .bg-light {
   background: #050608 !important;
 }
+

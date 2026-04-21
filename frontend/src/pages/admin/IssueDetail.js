@@ -1,97 +1,220 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
-import AdminLayout from '../../layouts/AdminLayout';
-import { Button, Breadcrumb } from '../../components/common';
-import { 
-  IoArrowBack, 
-  IoCheckmark, 
-  IoClose, 
-  IoAdd,
+import React, { useCallback, useEffect, useMemo, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
+import {
+  IoArrowBack,
+  IoCalendar,
+  IoCheckmark,
+  IoFlag,
   IoPencil,
   IoTrash,
-  IoFlag,
-  IoPerson,
-  IoCalendar,
-  IoLink,
-  IoAttach,
-  IoRefresh
 } from 'react-icons/io5';
-import { getIssueById, updateIssue, getUsers } from '../../services/api';
+import AdminLayout from '../../layouts/AdminLayout';
+import { Breadcrumb, Button } from '../../components/common';
+import {
+  addComment,
+  deleteIssue,
+  getIssueById,
+  getUsers,
+  updateIssue,
+} from '../../services/api';
+
+const STATUS_OPTIONS = ['To Do', 'In Progress', 'In Review', 'Done'];
+const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
+const TYPE_OPTIONS = ['Task', 'Bug', 'Feature', 'Improvement'];
+
+const getInitial = (user) => (user?.username?.[0] || '?').toUpperCase();
+
+const formatDateTime = (value) => {
+  if (!value) return 'Not available';
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return 'Not available';
+  return new Intl.DateTimeFormat('en-IN', {
+    dateStyle: 'medium',
+    timeStyle: 'short',
+  }).format(date);
+};
+
+const getStatusClasses = (status) => {
+  switch (status) {
+    case 'Done':
+      return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/20';
+    case 'In Progress':
+      return 'bg-blue-500/20 text-blue-300 border border-blue-500/20';
+    case 'In Review':
+      return 'bg-violet-500/20 text-violet-300 border border-violet-500/20';
+    default:
+      return 'bg-white/10 text-white/75 border border-white/10';
+  }
+};
+
+const getPriorityClasses = (priority) => {
+  switch (priority) {
+    case 'Critical': return 'text-red-300';
+    case 'High':     return 'text-orange-300';
+    case 'Medium':   return 'text-amber-300';
+    default:         return 'text-sky-300';
+  }
+};
+
+const getTypeClasses = (type) => {
+  switch (type) {
+    case 'Bug':         return 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/20';
+    case 'Feature':     return 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/20';
+    case 'Improvement': return 'bg-amber-500/20 text-amber-200 border border-amber-500/20';
+    default:            return 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/20';
+  }
+};
+
+const createEditForm = (issueData) => ({
+  title:          issueData?.title          || '',
+  description:    issueData?.description    || '',
+  status:         issueData?.status         || 'To Do',
+  priority:       issueData?.priority       || 'Medium',
+  issueType:      issueData?.issueType      || 'Task',
+  assignee:       issueData?.assignee?._id  || '',
+  reviewAssignee: issueData?.reviewAssignee?._id || '',
+  reporter:       issueData?.reporter?._id  || '',
+});
+
+const getPreferredCommentAuthor = (issueData, usersData) =>
+  issueData?.reporter?._id ||
+  issueData?.assignee?._id ||
+  issueData?.reviewAssignee?._id ||
+  usersData?.[0]?._id ||
+  '';
+
+const UserChip = ({ user, emptyLabel = 'Not assigned' }) => {
+  if (!user) return <p className="text-sm text-white/40">{emptyLabel}</p>;
+  return (
+    <div className="flex items-center gap-2 rounded-xl border border-white/10 bg-white/5 px-2.5 py-1.5">
+      <div className="flex h-7 w-7 items-center justify-center rounded-lg bg-[#1b4ed8] text-xs font-semibold text-white">
+        {getInitial(user)}
+      </div>
+      <div className="min-w-0">
+        <p className="truncate text-sm font-semibold text-white">{user.username}</p>
+        <p className="truncate text-xs text-white/45">{user.email}</p>
+      </div>
+    </div>
+  );
+};
+
+// Inline detail row: label on left, value on right
+const DetailRow = ({ label, children }) => (
+  <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2">
+    <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40 shrink-0">{label}</p>
+    <div className="flex justify-end">{children}</div>
+  </div>
+);
 
 const IssueDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
-  const [issue, setIssue] = useState(null);
-  const [users, setUsers] = useState([]);
-  const [loading, setLoading] = useState(true);
-  const [error, setError] = useState('');
-  const [newComment, setNewComment] = useState('');
-  const [isEditing, setIsEditing] = useState(false);
-  const [editForm, setEditForm] = useState({});
 
-  useEffect(() => {
-    fetchData();
-  }, [id]);
+  const [issue, setIssue]                         = useState(null);
+  const [users, setUsers]                         = useState([]);
+  const [loading, setLoading]                     = useState(true);
+  const [error, setError]                         = useState('');
+  const [isEditing, setIsEditing]                 = useState(false);
+  const [isSaving, setIsSaving]                   = useState(false);
+  const [isSubmittingComment, setIsSubmittingComment] = useState(false);
+  const [editForm, setEditForm]                   = useState(createEditForm(null));
+  const [newComment, setNewComment]               = useState('');
+  const [commentAuthorId, setCommentAuthorId]     = useState('');
 
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [issueData, usersData] = await Promise.all([
-        getIssueById(id),
-        getUsers(),
-      ]);
+      const [issueData, usersData] = await Promise.all([getIssueById(id), getUsers()]);
       setIssue(issueData);
       setUsers(usersData);
-      setEditForm({
-        title: issueData.title,
-        description: issueData.description,
-        status: issueData.status,
-        priority: issueData.priority,
-        issueType: issueData.issueType,
-        assignee: issueData.assignee?._id || '',
-      });
+      setEditForm(createEditForm(issueData));
+      setCommentAuthorId((cur) => cur || getPreferredCommentAuthor(issueData, usersData));
+      setError('');
     } catch (err) {
       setError('Failed to load issue');
       console.error(err);
     } finally {
       setLoading(false);
     }
-  };
+  }, [id]);
 
-  const handleStatusChange = async (newStatus) => {
-    try {
-      await updateIssue(id, { status: newStatus });
-      setIssue({ ...issue, status: newStatus });
-    } catch (err) {
-      alert('Failed to update status');
-    }
+  useEffect(() => { fetchData(); }, [fetchData]);
+
+  const sortedComments = useMemo(() =>
+    [...(issue?.comments || [])].sort(
+      (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
+    ),
+  [issue]);
+
+  const applyIssueUpdate = (updatedIssue) => {
+    setIssue(updatedIssue);
+    setEditForm(createEditForm(updatedIssue));
+    setCommentAuthorId((cur) => cur || getPreferredCommentAuthor(updatedIssue, users));
   };
 
   const handleSaveEdit = async () => {
     try {
-      await updateIssue(id, editForm);
-      setIssue({ ...issue, ...editForm });
+      setIsSaving(true);
+      const response = await updateIssue(id, {
+        title:          editForm.title,
+        description:    editForm.description,
+        status:         editForm.status,
+        priority:       editForm.priority,
+        issueType:      editForm.issueType,
+        assignee:       editForm.assignee       || null,
+        reviewAssignee: editForm.reviewAssignee || null,
+        reporter:       editForm.reporter       || null,
+      });
+      applyIssueUpdate(response.issue || response);
       setIsEditing(false);
+      setError('');
     } catch (err) {
-      alert('Failed to save changes');
+      setError(err.message || 'Failed to save issue changes');
+    } finally {
+      setIsSaving(false);
     }
   };
 
-  const handleAddComment = () => {
-    if (newComment.trim()) {
-      // TODO: Implement comment API
+  const handleCancelEdit = () => {
+    setEditForm(createEditForm(issue));
+    setIsEditing(false);
+  };
+
+  const handleDeleteIssue = async () => {
+    if (!window.confirm('Are you sure you want to delete this issue?')) return;
+    try {
+      await deleteIssue(id);
+      navigate(issue?.project?._id ? `/admin/projects/${issue.project._id}` : '/admin/issues');
+    } catch (err) {
+      setError(err.message || 'Failed to delete issue');
+    }
+  };
+
+  const handleAddComment = async () => {
+    if (!newComment.trim()) return;
+    try {
+      setIsSubmittingComment(true);
+      const response = await addComment(id, {
+        text:   newComment.trim(),
+        author: commentAuthorId || null,
+      });
+      applyIssueUpdate(response.issue || response);
       setNewComment('');
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Failed to add comment');
+    } finally {
+      setIsSubmittingComment(false);
     }
   };
 
   if (loading) {
     return (
       <AdminLayout>
-        <div className="flex items-center justify-center min-h-96">
+        <div className="flex min-h-[60vh] items-center justify-center">
           <div className="text-center">
-            <div className="w-8 h-8 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
-            <p className="text-gray-600">Loading issue...</p>
+            <div className="mx-auto mb-4 h-10 w-10 animate-spin rounded-full border-4 border-primary border-t-transparent" />
+            <p className="text-white/60">Loading issue...</p>
           </div>
         </div>
       </AdminLayout>
@@ -101,258 +224,321 @@ const IssueDetail = () => {
   if (!issue) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-red-600">Issue not found</div>
+        <div className="py-10 text-center text-red-300">Issue not found</div>
       </AdminLayout>
     );
   }
 
-  const statusColors = {
-    'To Do': 'bg-gray-100 text-gray-800',
-    'In Progress': 'bg-blue-100 text-blue-800',
-    'In Review': 'bg-purple-100 text-purple-800',
-    'Done': 'bg-green-100 text-green-800',
-  };
-
-  const priorityColors = {
-    'Low': 'text-blue-600',
-    'Medium': 'text-yellow-600',
-    'High': 'text-orange-600',
-    'Critical': 'text-red-600',
-  };
-
-  const statusOptions = ['To Do', 'In Progress', 'In Review', 'Done'];
-
   return (
     <AdminLayout>
-      <div className="-mx-3 md:-mx-5 -my-3 md:-my-5 px-3 md:px-6 py-4 md:py-6 ui-dark-page min-h-[calc(100vh-120px)]">
-        {/* Header */}
-        <div className="sticky top-0 z-40 py-3">
-          <div className="ui-surface-muted ui-shadow flex items-center justify-between px-4 py-2">
-            <div className="flex items-center gap-4">
-              <button
-                onClick={() => navigate(-1)}
-                className="flex items-center gap-2 text-gray-600 hover:text-dark transition"
+      {/* Full-height container, no page-level scroll — children scroll internally */}
+      <div className="-mx-3 ui-dark-page px-3 py-3 md:-mx-5 md:px-5 md:py-4 flex flex-col" style={{ height: 'calc(100vh - 104px)', overflow: 'hidden' }}>
+
+        {/* ── Top bar: Back + Title + Actions ── */}
+        <div className="ui-dark-surface-strong ui-shadow mb-3 flex items-center gap-3 px-4 py-2.5 overflow-hidden shrink-0">
+          <button
+            type="button"
+            onClick={() => navigate(-1)}
+            className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-white/75 transition hover:bg-white/10 hover:text-white shrink-0"
+          >
+            <IoArrowBack size={15} /> Back
+          </button>
+
+          {isEditing ? (
+            <input
+              type="text"
+              value={editForm.title}
+              onChange={(e) => setEditForm((cur) => ({ ...cur, title: e.target.value }))}
+              className="flex-1 min-w-0 border-0 bg-transparent p-0 text-lg font-bold text-white focus:ring-0"
+              placeholder="Issue title"
+            />
+          ) : (
+            <h1 className="flex-1 min-w-0 truncate text-lg font-bold tracking-tight text-white">
+              {issue.title}
+            </h1>
+          )}
+
+          <div className="flex items-center gap-2 shrink-0">
+            {isEditing ? (
+              <>
+                <Button
+                  variant="primary"
+                  size="sm"
+                  onClick={handleSaveEdit}
+                  disabled={isSaving || !editForm.title.trim()}
+                  className="flex items-center gap-1.5"
+                >
+                  <IoCheckmark size={14} />
+                  {isSaving ? 'Saving…' : 'Save'}
+                </Button>
+                <Button variant="secondary" size="sm" onClick={handleCancelEdit}>
+                  Cancel
+                </Button>
+              </>
+            ) : (
+              <Button
+                variant="secondary"
+                size="sm"
+                onClick={() => setIsEditing(true)}
+                className="flex items-center gap-1.5"
               >
-                <IoArrowBack /> Back
-              </button>
-              <span className="text-gray-400">|</span>
-              <span className="text-sm font-medium text-gray-600">{issue.issueId}</span>
-            </div>
-            <div className="flex items-center gap-3">
-              {!isEditing && (
-                <>
-                  <Button
-                    variant="secondary"
-                    onClick={() => setIsEditing(true)}
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <IoPencil size={14} /> Edit
-                  </Button>
-                  <Button
-                    variant="danger"
-                    size="sm"
-                    className="flex items-center gap-2"
-                  >
-                    <IoTrash size={14} />
-                  </Button>
-                </>
-              )}
-            </div>
+                <IoPencil size={13} /> Edit
+              </Button>
+            )}
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={handleDeleteIssue}
+              className="flex items-center gap-1.5"
+            >
+              <IoTrash size={13} /> Delete
+            </Button>
           </div>
         </div>
 
-        <div className="py-3">
-          <div className="grid grid-cols-1 lg:grid-cols-4 gap-4">
-            {/* Main Content */}
-            <div className="lg:col-span-3 space-y-4">
-              {/* Title and Status */}
-              <div className="ui-surface ui-shadow p-4">
-                <div className="flex items-start justify-between gap-4 mb-3">
-                  <div className="flex-1">
-                    {isEditing ? (
-                      <input
-                        type="text"
-                        value={editForm.title}
-                        onChange={(e) => setEditForm({ ...editForm, title: e.target.value })}
-                        className="text-xl font-bold w-full px-2 py-1"
-                      />
-                    ) : (
-                      <h1 className="text-xl font-bold text-dark">{issue.title}</h1>
-                    )}
+        {error && (
+          <div className="mb-3 shrink-0 rounded-xl border border-red-500/30 bg-red-500/10 px-4 py-2.5 text-sm text-red-200">
+            {error}
+          </div>
+        )}
+
+        {/* ── Main grid ── */}
+        <div className="grid gap-3 flex-1 min-h-0 xl:grid-cols-[minmax(0,1.55fr)_300px]">
+
+          {/* Left column */}
+          <div className="grid gap-3 min-h-0 xl:grid-rows-[auto,minmax(0,1fr)]">
+
+            {/* Description */}
+            <section className="ui-dark-surface ui-shadow overflow-hidden p-4 shrink-0">
+              <div className="mb-2 flex items-center justify-between gap-3">
+                <h2 className="text-sm font-semibold text-white">Description</h2>
+              </div>
+
+              {isEditing ? (
+                <textarea
+                  value={editForm.description}
+                  onChange={(e) => setEditForm((cur) => ({ ...cur, description: e.target.value }))}
+                  rows={4}
+                  className="w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white"
+                  placeholder="Add a clear description so the team knows what needs to happen."
+                />
+              ) : (
+                <div className="max-h-24 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-white/80">
+                  {issue.description || 'No description has been added for this issue yet.'}
+                </div>
+              )}
+            </section>
+
+            {/* Comments */}
+            <section className="ui-dark-surface ui-shadow flex min-h-0 flex-col overflow-hidden p-4">
+              <div className="mb-3 flex items-center justify-between gap-2 shrink-0">
+                <h2 className="text-sm font-semibold text-white">Comments</h2>
+                <span className="text-xs text-white/40">{sortedComments.length} comment{sortedComments.length === 1 ? '' : 's'}</span>
+              </div>
+
+              {/* Composer */}
+              <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)] md:items-start">
+                  <div>
+                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
+                      Comment As
+                    </label>
+                    <select
+                      value={commentAuthorId}
+                      onChange={(e) => setCommentAuthorId(e.target.value)}
+                      className="w-full"
+                    >
+                      <option value="">Anonymous</option>
+                      {users.map((user) => (
+                        <option key={user._id} value={user._id}>{user.username}</option>
+                      ))}
+                    </select>
                   </div>
-                  <div className="flex items-center gap-2">
-                    {isEditing && (
-                      <>
-                        <Button variant="primary" size="sm" onClick={handleSaveEdit}>Save</Button>
-                        <Button variant="secondary" size="sm" onClick={() => setIsEditing(false)}>Cancel</Button>
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-
-              {/* Description */}
-              <div className="ui-surface ui-shadow p-4">
-                <h2 className="text-sm font-semibold text-gray-700 mb-2">Description</h2>
-                {isEditing ? (
-                  <textarea
-                    value={editForm.description}
-                    onChange={(e) => setEditForm({ ...editForm, description: e.target.value })}
-                    className="w-full"
-                    rows={4}
-                  />
-                ) : (
-                  <p className="text-gray-700 text-sm leading-relaxed">{issue.description}</p>
-                )}
-              </div>
-
-              {/* Subtasks */}
-              <div className="ui-surface ui-shadow p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold text-gray-700">Subtasks</h2>
-                  <Button variant="ghost" size="sm" className="text-primary text-xs flex items-center gap-1">
-                    <IoAdd size={14} /> Add subtask
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500">No subtasks yet</p>
-              </div>
-
-              {/* Linked Work Items */}
-              <div className="ui-surface ui-shadow p-4">
-                <div className="flex items-center justify-between mb-3">
-                  <h2 className="text-sm font-semibold text-gray-700">Linked work items</h2>
-                  <Button variant="ghost" size="sm" className="text-primary text-xs flex items-center gap-1">
-                    <IoLink size={14} /> Add link
-                  </Button>
-                </div>
-                <p className="text-xs text-gray-500">No linked items</p>
-              </div>
-
-              {/* Activity */}
-              <div className="ui-surface ui-shadow p-4">
-                <h2 className="text-sm font-semibold text-gray-700 mb-3">Activity</h2>
-                
-                {/* Comments */}
-                <div className="mb-4">
-                  <div className="flex items-start gap-3 mb-3">
-                    <div className="w-8 h-8 rounded-full bg-primary flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                      S
+                  <div>
+                    <textarea
+                      value={newComment}
+                      onChange={(e) => setNewComment(e.target.value)}
+                      rows={2}
+                      className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm leading-6 text-white"
+                      placeholder="Add context, share updates, or leave a review note..."
+                    />
+                    <div className="mt-1.5 flex justify-end gap-2">
+                      {newComment && (
+                        <Button variant="secondary" size="sm" onClick={() => setNewComment('')}>Clear</Button>
+                      )}
+                      <Button
+                        variant="primary"
+                        size="sm"
+                        onClick={handleAddComment}
+                        disabled={isSubmittingComment || !newComment.trim()}
+                      >
+                        {isSubmittingComment ? 'Posting…' : 'Post Comment'}
+                      </Button>
                     </div>
-                    <div className="flex-1">
-                      <textarea
-                        value={newComment}
-                        onChange={(e) => setNewComment(e.target.value)}
-                        placeholder="Add a comment..."
-                        className="w-full resize-none"
-                        rows={2}
-                      />
-                      <div className="flex items-center justify-end gap-2 mt-2">
-                        {newComment && (
-                          <>
-                            <Button variant="secondary" size="sm" onClick={() => setNewComment('')}>Cancel</Button>
-                            <Button variant="primary" size="sm" onClick={handleAddComment}>Comment</Button>
-                          </>
-                        )}
+                  </div>
+                </div>
+              </div>
+
+              {/* Comment list — scrollable */}
+              <div className="mt-3 min-h-0 flex-1 overflow-y-auto space-y-2.5 pr-1">
+                {sortedComments.length > 0 ? (
+                  sortedComments.map((comment) => (
+                    <div
+                      key={comment._id || `${comment.createdAt}-${comment.text}`}
+                      className="rounded-xl border border-white/10 bg-white/[0.03] p-3"
+                    >
+                      <div className="flex items-start gap-3">
+                        <div className="flex h-8 w-8 shrink-0 items-center justify-center rounded-lg bg-[#1b4ed8] text-sm font-semibold text-white">
+                          {getInitial(comment.author)}
+                        </div>
+                        <div className="min-w-0 flex-1">
+                          <div className="flex flex-wrap items-center gap-2">
+                            <p className="text-sm font-semibold text-white">
+                              {comment.author?.username || 'Anonymous'}
+                            </p>
+                            <span className="text-xs text-white/40">{formatDateTime(comment.createdAt)}</span>
+                          </div>
+                          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">
+                            {comment.text}
+                          </p>
+                        </div>
                       </div>
                     </div>
+                  ))
+                ) : (
+                  <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-white/40">
+                    No comments yet. Add the first update.
                   </div>
-                  <div className="space-y-2 text-xs text-gray-600">
-                    <p className="text-gray-400">Created 22 April 2025 at 05:09</p>
-                    <p className="text-gray-400">Updated 12 June 2025 at 16:25</p>
-                  </div>
-                </div>
+                )}
               </div>
-            </div>
+            </section>
+          </div>
 
-            {/* Right Sidebar - Details */}
-            <div className="space-y-3">
-              {/* Status Button */}
-              <div className="ui-surface ui-shadow p-3">
-                <div className="flex items-center justify-between">
-                  <span className="text-xs font-semibold text-gray-600">Status</span>
-                  <div className="relative group">
-                    <button className={`px-3 py-1 rounded text-xs font-semibold ${statusColors[issue.status]} hover:opacity-80 flex items-center gap-1`}>
+          {/* Right column — Details */}
+          <div className="min-h-0 overflow-hidden">
+            <section className="ui-dark-surface ui-shadow h-full overflow-hidden p-4 flex flex-col">
+              <div className="mb-3 shrink-0">
+                <h2 className="text-sm font-semibold text-white">Details</h2>
+              </div>
+
+              <div className="min-h-0 flex-1 overflow-y-auto space-y-2 pr-1">
+                {/* Status */}
+                <DetailRow label="Status">
+                  {isEditing ? (
+                    <select
+                      value={editForm.status}
+                      onChange={(e) => setEditForm((cur) => ({ ...cur, status: e.target.value }))}
+                      className="w-full"
+                    >
+                      {STATUS_OPTIONS.map((s) => <option key={s} value={s}>{s}</option>)}
+                    </select>
+                  ) : (
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusClasses(issue.status)}`}>
                       {issue.status}
-                      <span className="text-xs">▼</span>
-                    </button>
-                    <div className="absolute right-0 mt-1 bg-white border border-gray-200 rounded shadow-lg opacity-0 invisible group-hover:opacity-100 group-hover:visible transition z-10">
-                      {statusOptions.map((status) => (
-                        <button
-                          key={status}
-                          onClick={() => handleStatusChange(status)}
-                          className="block w-full text-left px-3 py-2 text-xs hover:bg-gray-100 text-gray-700"
-                        >
-                          {status}
-                        </button>
-                      ))}
+                    </span>
+                  )}
+                </DetailRow>
+
+                {/* Priority */}
+                <DetailRow label="Priority">
+                  {isEditing ? (
+                    <select
+                      value={editForm.priority}
+                      onChange={(e) => setEditForm((cur) => ({ ...cur, priority: e.target.value }))}
+                      className="w-full"
+                    >
+                      {PRIORITY_OPTIONS.map((p) => <option key={p} value={p}>{p}</option>)}
+                    </select>
+                  ) : (
+                    <div className={`flex items-center gap-1.5 text-sm font-semibold ${getPriorityClasses(issue.priority)}`}>
+                      <IoFlag size={13} />
+                      {issue.priority}
                     </div>
+                  )}
+                </DetailRow>
+
+                {/* Issue Type */}
+                <DetailRow label="Type">
+                  {isEditing ? (
+                    <select
+                      value={editForm.issueType}
+                      onChange={(e) => setEditForm((cur) => ({ ...cur, issueType: e.target.value }))}
+                      className="w-full"
+                    >
+                      {TYPE_OPTIONS.map((t) => <option key={t} value={t}>{t}</option>)}
+                    </select>
+                  ) : (
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getTypeClasses(issue.issueType)}`}>
+                      {issue.issueType}
+                    </span>
+                  )}
+                </DetailRow>
+
+                {/* Assignee */}
+                <DetailRow label="Assignee">
+                  {isEditing ? (
+                    <select
+                      value={editForm.assignee}
+                      onChange={(e) => setEditForm((cur) => ({ ...cur, assignee: e.target.value }))}
+                      className="w-full"
+                    >
+                      <option value="">Unassigned</option>
+                      {users.map((u) => <option key={u._id} value={u._id}>{u.username}</option>)}
+                    </select>
+                  ) : (
+                    <UserChip user={issue.assignee} emptyLabel="No assignee" />
+                  )}
+                </DetailRow>
+
+                {/* Review Assignee */}
+                <DetailRow label="Reviewer">
+                  {isEditing ? (
+                    <select
+                      value={editForm.reviewAssignee}
+                      onChange={(e) => setEditForm((cur) => ({ ...cur, reviewAssignee: e.target.value }))}
+                      className="w-full"
+                    >
+                      <option value="">No reviewer</option>
+                      {users.map((u) => <option key={u._id} value={u._id}>{u.username}</option>)}
+                    </select>
+                  ) : (
+                    <UserChip user={issue.reviewAssignee} emptyLabel="No reviewer" />
+                  )}
+                </DetailRow>
+
+                {/* Reporter */}
+                <DetailRow label="Reporter">
+                  {isEditing ? (
+                    <select
+                      value={editForm.reporter}
+                      onChange={(e) => setEditForm((cur) => ({ ...cur, reporter: e.target.value }))}
+                      className="w-full"
+                    >
+                      <option value="">No reporter</option>
+                      {users.map((u) => <option key={u._id} value={u._id}>{u.username}</option>)}
+                    </select>
+                  ) : (
+                    <UserChip user={issue.reporter} emptyLabel="Not set" />
+                  )}
+                </DetailRow>
+
+                {/* Created */}
+                <DetailRow label="Created">
+                  <div className="flex items-center gap-1.5 text-xs text-white/70">
+                    <IoCalendar size={12} className="text-white/40" />
+                    {formatDateTime(issue.createdAt)}
                   </div>
-                </div>
+                </DetailRow>
+
+                {/* Updated */}
+                <DetailRow label="Updated">
+                  <div className="flex items-center gap-1.5 text-xs text-white/70">
+                    <IoCalendar size={12} className="text-white/40" />
+                    {formatDateTime(issue.updatedAt)}
+                  </div>
+                </DetailRow>
               </div>
-
-              {/* Details Panel */}
-              <div className="ui-surface ui-shadow p-3 space-y-3">
-                <div className="text-xs">
-                  <span className="text-gray-600 font-semibold block mb-1">Assignee</span>
-                  <div className="flex items-center gap-2">
-                    <div className="w-6 h-6 rounded-full bg-blue-500 text-white flex items-center justify-center text-xs font-bold">
-                      {issue.assignee?.username?.[0].toUpperCase()}
-                    </div>
-                    <span className="text-gray-700 font-medium">{issue.assignee?.username || 'Unassigned'}</span>
-                  </div>
-                </div>
-
-                <div className="border-t border-gray-200 pt-3">
-                  <span className="text-gray-600 font-semibold block mb-2 text-xs">Priority</span>
-                  <select
-                    value={editForm.priority}
-                    onChange={(e) => setEditForm({ ...editForm, priority: e.target.value })}
-                    disabled={!isEditing}
-                    className="w-full text-xs disabled:bg-transparent"
-                  >
-                    <option>Low</option>
-                    <option>Medium</option>
-                    <option>High</option>
-                    <option>Critical</option>
-                  </select>
-                </div>
-
-                <div className="border-t border-gray-200 pt-3">
-                  <span className="text-gray-600 font-semibold block mb-1 text-xs">Type</span>
-                  <select
-                    value={editForm.issueType}
-                    onChange={(e) => setEditForm({ ...editForm, issueType: e.target.value })}
-                    disabled={!isEditing}
-                    className="w-full text-xs disabled:bg-transparent"
-                  >
-                    <option>Task</option>
-                    <option>Bug</option>
-                    <option>Feature</option>
-                    <option>Improvement</option>
-                  </select>
-                </div>
-
-                <div className="border-t border-gray-200 pt-3">
-                  <span className="text-gray-600 font-semibold block mb-1 text-xs">Reporter</span>
-                  <span className="text-gray-700 text-xs">{issue.project?.name || 'N/A'}</span>
-                </div>
-              </div>
-
-              {/* Timeline */}
-              <div className="ui-surface ui-shadow p-3">
-                <div className="space-y-2 text-xs text-gray-600">
-                  <div>
-                    <span className="font-semibold">Created</span>
-                    <p>22 April 2025 at 05:09</p>
-                  </div>
-                  <div>
-                    <span className="font-semibold">Updated</span>
-                    <p>12 June 2025 at 16:25</p>
-                  </div>
-                </div>
-              </div>
-            </div>
+            </section>
           </div>
         </div>
       </div>

@@ -66,7 +66,7 @@ export const Sidebar = ({
                     className={`group flex items-center justify-between gap-3 px-5 py-4 rounded-2xl border transition ${
                       active
                         ? 'bg-[#2a2cff]/20 border-[#5b5dff]/50 shadow-[0_0_0_2px_rgba(91,93,255,0.35)]'
-                        : 'bg-white/5 border-white/10 hover:bg-white/8 hover:border-white/15'
+                        : 'bg-white/5 border-white/10 hover:bg-white/10 hover:border-white/20'
                     }`}
                   >
                     <div className="flex items-center gap-3 min-w-0">
@@ -107,5 +107,6 @@ export const Sidebar = ({
     </>
   );
 };
+
 
 

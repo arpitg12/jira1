@@ -3,11 +3,11 @@ import React from 'react';
 export const Button = ({ children, variant = 'primary', size = 'md', className = '', ...props }) => {
   const variants = {
     primary: 'bg-primary text-white hover:bg-blue-700 shadow-sm',
-    secondary: 'bg-white/8 text-white hover:bg-white/12 border border-white/10',
+    secondary: 'bg-white/10 text-white hover:bg-white/10 border border-white/10',
     danger: 'bg-danger text-white hover:bg-red-700 shadow-sm',
     success: 'bg-success text-white hover:bg-green-700 shadow-sm',
-    outline: 'border border-white/12 text-white/85 hover:bg-white/8',
-    ghost: 'text-white/75 hover:bg-white/8',
+    outline: 'border border-white/10 text-white/80 hover:bg-white/10',
+    ghost: 'text-white/75 hover:bg-white/10',
   };
 
   const sizes = {
@@ -26,3 +26,4 @@ export const Button = ({ children, variant = 'primary', size = 'md', className =
     </button>
   );
 };
+

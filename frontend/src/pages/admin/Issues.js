@@ -33,6 +33,7 @@ const Issues = () => {
     priority: 'Medium',
     assignee: '',
     reviewAssignee: '',
+    reporter: '',
     project: '',
   });
   const [selectedIssue, setSelectedIssue] = useState(null);
@@ -76,6 +77,7 @@ const Issues = () => {
         priority: issueForm.priority,
         assignee: issueForm.assignee || undefined,
         reviewAssignee: issueForm.reviewAssignee || undefined,
+        reporter: issueForm.reporter || undefined,
         project: issueForm.project,
       });
       setIssueForm({
@@ -85,6 +87,7 @@ const Issues = () => {
         priority: 'Medium',
         assignee: '',
         reviewAssignee: '',
+        reporter: '',
         project: '',
       });
       setIsCreateModalOpen(false);
@@ -108,6 +111,7 @@ const Issues = () => {
         status: issueForm.status,
         assignee: issueForm.assignee || undefined,
         reviewAssignee: issueForm.reviewAssignee || undefined,
+        reporter: issueForm.reporter || undefined,
       });
       setIssueForm({
         title: '',
@@ -116,6 +120,7 @@ const Issues = () => {
         priority: 'Medium',
         assignee: '',
         reviewAssignee: '',
+        reporter: '',
         project: '',
         status: 'To Do',
       });
@@ -138,6 +143,7 @@ const Issues = () => {
       status: issue.status,
       assignee: issue.assignee?._id || '',
       reviewAssignee: issue.reviewAssignee?._id || '',
+      reporter: issue.reporter?._id || '',
       project: issue.project._id,
     });
     setIsEditModalOpen(true);
@@ -332,6 +338,7 @@ const Issues = () => {
               priority: 'Medium',
               assignee: '',
               reviewAssignee: '',
+              reporter: '',
               project: '',
             });
           }}
@@ -423,7 +430,7 @@ const Issues = () => {
                 ))}
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-dark mb-2">
                   Assignee
@@ -465,6 +472,28 @@ const Issues = () => {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-dark mb-2">
+                  Reporter
+                </label>
+                <select
+                  value={issueForm.reporter}
+                  onChange={(e) =>
+                    setIssueForm({
+                      ...issueForm,
+                      reporter: e.target.value,
+                    })
+                  }
+                  className="w-full"
+                >
+                  <option value="">-- Select reporter --</option>
+                  {users.map((user) => (
+                    <option key={user._id} value={user._id}>
+                      {user.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="flex gap-2 pt-4">
               <Button variant="primary" size="sm" type="submit">
@@ -482,6 +511,7 @@ const Issues = () => {
                     priority: 'Medium',
                     assignee: '',
                     reviewAssignee: '',
+                    reporter: '',
                     project: '',
                   });
                 }}
@@ -504,6 +534,7 @@ const Issues = () => {
               priority: 'Medium',
               assignee: '',
               reviewAssignee: '',
+              reporter: '',
               project: '',
               status: 'To Do',
             });
@@ -590,11 +621,11 @@ const Issues = () => {
               >
                 <option value="To Do">To Do</option>
                 <option value="In Progress">In Progress</option>
-                <option value="Review">Review</option>
+                <option value="In Review">In Review</option>
                 <option value="Done">Done</option>
               </select>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-dark mb-2">
                   Assignee
@@ -636,6 +667,28 @@ const Issues = () => {
                   ))}
                 </select>
               </div>
+              <div>
+                <label className="block text-sm font-semibold text-dark mb-2">
+                  Reporter
+                </label>
+                <select
+                  value={issueForm.reporter}
+                  onChange={(e) =>
+                    setIssueForm({
+                      ...issueForm,
+                      reporter: e.target.value,
+                    })
+                  }
+                  className="w-full"
+                >
+                  <option value="">-- Select reporter --</option>
+                  {users.map((user) => (
+                    <option key={user._id} value={user._id}>
+                      {user.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
             </div>
             <div className="flex gap-2 pt-4">
               <Button variant="primary" size="sm" type="submit">
@@ -653,6 +706,7 @@ const Issues = () => {
                     priority: 'Medium',
                     assignee: '',
                     reviewAssignee: '',
+                    reporter: '',
                     project: '',
                     status: 'To Do',
                   });
@@ -670,3 +724,4 @@ const Issues = () => {
 };
 
 export default Issues;
+

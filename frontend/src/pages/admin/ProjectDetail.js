@@ -44,6 +44,7 @@ const ProjectDetail = () => {
     status: 'To Do',
     assignee: '',
     reviewAssignee: '',
+    reporter: '',
   });
   const [selectedIssue, setSelectedIssue] = useState(null);
 
@@ -112,6 +113,7 @@ const ProjectDetail = () => {
         status: issueForm.status,
         assignee: issueForm.assignee || undefined,
         reviewAssignee: issueForm.reviewAssignee || undefined,
+        reporter: issueForm.reporter || undefined,
         project: id,
       });
       resetIssueForm();
@@ -136,6 +138,7 @@ const ProjectDetail = () => {
         status: issueForm.status,
         assignee: issueForm.assignee || undefined,
         reviewAssignee: issueForm.reviewAssignee || undefined,
+        reporter: issueForm.reporter || undefined,
       });
       resetIssueForm();
       setIsEditModalOpen(false);
@@ -169,6 +172,7 @@ const ProjectDetail = () => {
       status: issue.status,
       assignee: issue.assignee?._id || '',
       reviewAssignee: issue.reviewAssignee?._id || '',
+      reporter: issue.reporter?._id || '',
     });
     setIsEditModalOpen(true);
   };
@@ -182,6 +186,7 @@ const ProjectDetail = () => {
       status: 'To Do',
       assignee: '',
       reviewAssignee: '',
+      reporter: '',
     });
   };
 
@@ -537,7 +542,7 @@ const ProjectDetail = () => {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-dark mb-2">
                   Status
@@ -568,6 +573,28 @@ const ProjectDetail = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
                 >
                   <option value="">-- Select assignee --</option>
+                  {users.map((user) => (
+                    <option key={user._id} value={user._id}>
+                      {user.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-dark mb-2">
+                  Reporter
+                </label>
+                <select
+                  value={issueForm.reporter}
+                  onChange={(e) =>
+                    setIssueForm({
+                      ...issueForm,
+                      reporter: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                >
+                  <option value="">-- Select reporter --</option>
                   {users.map((user) => (
                     <option key={user._id} value={user._id}>
                       {user.username}
@@ -691,7 +718,7 @@ const ProjectDetail = () => {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-2 gap-4">
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
               <div>
                 <label className="block text-sm font-semibold text-dark mb-2">
                   Status
@@ -722,6 +749,28 @@ const ProjectDetail = () => {
                   className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
                 >
                   <option value="">-- Select assignee --</option>
+                  {users.map((user) => (
+                    <option key={user._id} value={user._id}>
+                      {user.username}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="block text-sm font-semibold text-dark mb-2">
+                  Reporter
+                </label>
+                <select
+                  value={issueForm.reporter}
+                  onChange={(e) =>
+                    setIssueForm({
+                      ...issueForm,
+                      reporter: e.target.value,
+                    })
+                  }
+                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                >
+                  <option value="">-- Select reporter --</option>
                   {users.map((user) => (
                     <option key={user._id} value={user._id}>
                       {user.username}

@@ -41,7 +41,7 @@ export const Header = ({ toggleSidebar, user }) => {
             <div className="flex items-center gap-4">
               <button
                 onClick={toggleSidebar}
-                className="md:hidden p-2 hover:bg-white/8 rounded-lg text-white/80"
+                className="md:hidden p-2 hover:bg-white/10 rounded-lg text-white/80"
               >
                 <IoMenu size={20} />
               </button>
@@ -59,20 +59,20 @@ export const Header = ({ toggleSidebar, user }) => {
             <div className="flex items-center gap-1 md:gap-3">
               <button
                 onClick={() => setShowNotifications(true)}
-                className="relative p-2 hover:bg-white/8 rounded-lg"
+                className="relative p-2 hover:bg-white/10 rounded-lg"
               >
                 <IoNotifications size={20} className="text-white/70" />
                 <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full"></span>
               </button>
 
-              <button className="p-2 hover:bg-white/8 rounded-lg">
+              <button className="p-2 hover:bg-white/10 rounded-lg">
                 <IoSettings size={20} className="text-white/70" />
               </button>
 
               <div className="relative">
                 <button
                   onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-3 p-2 hover:bg-white/8 rounded-xl"
+                  className="flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl"
                 >
                   <div className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">
                     {user?.initial || 'A'}
@@ -92,8 +92,8 @@ export const Header = ({ toggleSidebar, user }) => {
                         <button
                           key={idx}
                           onClick={() => handleProfileMenuClick(item.action)}
-                          className={`w-full text-left px-4 py-2 hover:bg-white/8 flex items-center gap-2 ${
-                            item.label === 'Logout' ? 'text-danger' : 'text-white/85'
+                          className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 ${
+                            item.label === 'Logout' ? 'text-danger' : 'text-white/80'
                           }`}
                         >
                           {item.label === 'Logout' && <IoLogOut />}
@@ -157,8 +157,8 @@ export const Header = ({ toggleSidebar, user }) => {
               <div className="space-y-2">
                 {['Maintenance Mode', 'Allow Signups', 'Enable API', 'Analytics'].map((feature) => (
                   <div key={feature} className="flex justify-between items-center p-2 rounded-lg bg-white/5">
-                    <span className="text-sm text-white/85">{feature}</span>
-                    <button className="w-10 h-6 bg-white/15 rounded-full relative">
+                    <span className="text-sm text-white/80">{feature}</span>
+                    <button className="w-10 h-6 bg-white/20 rounded-full relative">
                       <span className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full"></span>
                     </button>
                   </div>
@@ -180,3 +180,4 @@ export const Header = ({ toggleSidebar, user }) => {
     </>
   );
 };
+
