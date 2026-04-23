@@ -1,5 +1,6 @@
 import Issue from '../models/Issue.js';
 import Project from '../models/Project.js';
+import { buildProjectAccessFilter, hasProjectAccess, isAdmin, isIssueVisibleToUser } from '../middleware/auth.js';
 
 const issuePopulate = [
   { path: 'assignee', select: 'username email role' },
@@ -9,13 +10,16 @@ const issuePopulate = [
   { path: 'comments.replies.author', select: 'username email role' },
   {
     path: 'project',
-    populate: {
-      path: 'workflow',
-      populate: [
-        { path: 'states', select: 'name color description isActive' },
-        { path: 'defaultState', select: 'name color description isActive' },
-      ],
-    },
+    populate: [
+      {
+        path: 'workflow',
+        populate: [
+          { path: 'states', select: 'name color description isActive' },
+          { path: 'defaultState', select: 'name color description isActive' },
+        ],
+      },
+      { path: 'visibleToUsers', select: 'username email role' },
+    ],
   },
 ];
 
@@ -46,7 +50,10 @@ const validateWorkflowStatus = (status, allowedStatuses) =>
   !status || allowedStatuses.length === 0 || allowedStatuses.includes(status);
 
 const getProjectWithWorkflow = (projectId) =>
-  Project.findById(projectId).populate(workflowProjectPopulate);
+  Project.findById(projectId).populate([
+    workflowProjectPopulate,
+    { path: 'visibleToUsers', select: 'username email role active' },
+  ]);
 
 const findCommentById = (comments, commentId) => {
   for (const comment of comments) {
@@ -93,6 +100,10 @@ export const createIssue = async (req, res) => {
       return res.status(404).json({ error: 'Project not found' });
     }
 
+    if (!hasProjectAccess(req.user, selectedProject)) {
+      return res.status(403).json({ error: 'You do not have access to this project' });
+    }
+
     const allowedStatuses = getAllowedWorkflowStatuses(selectedProject);
     const resolvedStatus = status || getInitialWorkflowStatus(selectedProject);
 
@@ -114,7 +125,7 @@ export const createIssue = async (req, res) => {
       status: resolvedStatus,
       assignee: assignee || null,
       reviewAssignee: reviewAssignee || null,
-      reporter: reporter || null,
+      reporter: isAdmin(req.user) ? reporter || null : req.user._id,
       project,
       customFields: customFields || {},
     });
@@ -137,6 +148,24 @@ export const getIssues = async (req, res) => {
     if (assignee) filter.assignee = assignee;
     if (project) filter.project = project;
 
+    if (!isAdmin(req.user)) {
+      const accessibleProjects = await Project.find(buildProjectAccessFilter(req.user)).select('_id');
+      const accessibleProjectIds = accessibleProjects.map((entry) => entry._id);
+
+      if (accessibleProjectIds.length === 0) {
+        return res.json([]);
+      }
+
+      filter.project = project
+        ? { $in: accessibleProjectIds.filter((entry) => String(entry) === String(project)) }
+        : { $in: accessibleProjectIds };
+      filter.$or = [
+        { assignee: req.user._id },
+        { reviewAssignee: req.user._id },
+        { reporter: req.user._id },
+      ];
+    }
+
     const issues = await Issue.find(filter)
       .populate(issuePopulate);
 
@@ -154,6 +183,11 @@ export const getIssueById = async (req, res) => {
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
+
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
+    }
+
     res.json(issue);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -181,6 +215,10 @@ export const updateIssue = async (req, res) => {
 
     if (!existingIssue) {
       return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    if (!isIssueVisibleToUser(req.user, existingIssue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
     }
 
     const allowedStatuses = getAllowedWorkflowStatuses(existingIssue.project);
@@ -213,6 +251,10 @@ export const updateIssue = async (req, res) => {
 
 export const deleteIssue = async (req, res) => {
   try {
+    if (!isAdmin(req.user)) {
+      return res.status(403).json({ error: 'Only admins can delete issues' });
+    }
+
     const issue = await Issue.findByIdAndDelete(req.params.id);
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
@@ -237,9 +279,14 @@ export const addComment = async (req, res) => {
       return res.status(404).json({ error: 'Issue not found' });
     }
 
+    await issue.populate(issuePopulate);
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
+    }
+
     issue.comments.push({
       text: text.trim(),
-      author: author || null,
+      author: isAdmin(req.user) ? author || req.user._id : req.user._id,
       replies: [],
     });
     await issue.save();
@@ -263,6 +310,11 @@ export const updateComment = async (req, res) => {
       return res.status(404).json({ error: 'Issue not found' });
     }
 
+    await issue.populate(issuePopulate);
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
+    }
+
     const result = findCommentById(issue.comments, req.params.commentId);
     if (!result) {
       return res.status(404).json({ error: 'Comment not found' });
@@ -283,6 +335,11 @@ export const deleteComment = async (req, res) => {
     const issue = await Issue.findById(req.params.id);
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    await issue.populate(issuePopulate);
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
     }
 
     const comment = issue.comments.id(req.params.commentId);
@@ -313,6 +370,11 @@ export const addReply = async (req, res) => {
       return res.status(404).json({ error: 'Issue not found' });
     }
 
+    await issue.populate(issuePopulate);
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
+    }
+
     const result = findCommentById(issue.comments, req.params.commentId);
     if (!result) {
       return res.status(404).json({ error: 'Comment not found' });
@@ -320,7 +382,7 @@ export const addReply = async (req, res) => {
 
     result.comment.replies.push({
       text: text.trim(),
-      author: author || null,
+      author: isAdmin(req.user) ? author || req.user._id : req.user._id,
     });
     await issue.save();
     await issue.populate(issuePopulate);
@@ -344,6 +406,11 @@ export const updateReply = async (req, res) => {
       return res.status(404).json({ error: 'Issue not found' });
     }
 
+    await issue.populate(issuePopulate);
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
+    }
+
     const result = findReplyById(issue.comments, req.params.replyId);
     if (!result || String(result.parentComment._id) !== String(req.params.commentId)) {
       return res.status(404).json({ error: 'Reply not found' });
@@ -364,6 +431,11 @@ export const deleteReply = async (req, res) => {
     const issue = await Issue.findById(req.params.id);
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    await issue.populate(issuePopulate);
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
     }
 
     const result = findReplyById(issue.comments, req.params.replyId);

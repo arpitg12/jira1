@@ -1,57 +1,59 @@
 import React, { useState } from 'react';
-import { IoMenu, IoNotifications, IoSettings, IoLogOut, IoSearch } from 'react-icons/io5';
-import { Modal, Button } from './index';
+import { IoLogOut, IoMenu, IoNotifications, IoSearch, IoSettings } from 'react-icons/io5';
+import { Button, Modal } from './index';
 
-export const Header = ({ toggleSidebar, user }) => {
+export const Header = ({ toggleSidebar, user, isAdmin, onLogout }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
   const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
 
   const notifications = [
-    { id: 1, title: 'Issue JIR-001 assigned', message: 'You have been assigned to fix login bug', time: '5 min ago' },
-    { id: 2, title: 'Project update', message: 'New sprint started', time: '1 hour ago' },
-    { id: 3, title: 'Member joined', message: 'John Doe joined the team', time: '2 hours ago' },
+    { id: 1, title: 'Issue assigned', message: 'A new ticket needs attention in your workspace.', time: '5 min ago' },
+    { id: 2, title: 'Project updated', message: 'Project visibility or workflow settings changed.', time: '1 hour ago' },
+    { id: 3, title: 'Member activity', message: 'A teammate updated a project issue.', time: '2 hours ago' },
   ];
 
   const profileMenuItems = [
     { label: 'Profile Settings', action: 'profile' },
     { label: 'Account Settings', action: 'settings' },
-    { divider: true },
-    { label: 'Admin Panel', action: 'admin' },
+    ...(isAdmin ? [{ divider: true }, { label: 'Admin Panel', action: 'admin' }] : []),
     { divider: true },
     { label: 'Logout', action: 'logout' },
   ];
 
   const handleProfileMenuClick = (action) => {
     if (action === 'logout') {
-      console.log('Logging out...');
-    } else if (action === 'admin') {
-      setShowSettings(true);
       setShowProfileMenu(false);
-    } else if (action === 'settings') {
-      setShowProfileMenu(false);
+      onLogout?.();
+      return;
     }
+
+    if (action === 'admin' || action === 'settings') {
+      setShowSettings(true);
+    }
+
+    setShowProfileMenu(false);
   };
 
   return (
     <>
       <header className="sticky top-0 z-30">
-        <div className="px-3 md:px-5 py-2.5">
-          <div className="ui-surface-muted ui-shadow flex items-center justify-between px-3 md:px-4 py-2.5">
+        <div className="px-3 py-2.5 md:px-5">
+          <div className="ui-surface-muted ui-shadow flex items-center justify-between px-3 py-2.5 md:px-4">
             <div className="flex items-center gap-4">
               <button
                 onClick={toggleSidebar}
-                className="md:hidden p-2 hover:bg-white/10 rounded-lg text-white/80"
+                className="rounded-lg p-2 text-white/80 hover:bg-white/10 md:hidden"
               >
                 <IoMenu size={20} />
               </button>
 
-              <div className="hidden md:flex items-center bg-white/5 border border-white/10 rounded-xl px-3 py-2 min-w-72">
+              <div className="hidden min-w-72 items-center rounded-xl border border-white/10 bg-white/5 px-3 py-2 md:flex">
                 <IoSearch className="text-white/40" />
                 <input
                   type="text"
                   placeholder="Search issues, projects..."
-                  className="bg-transparent ml-2 outline-none w-full text-sm text-white placeholder:text-white/35 border-0 ring-0 p-0"
+                  className="ml-2 w-full border-0 bg-transparent p-0 text-sm text-white outline-none ring-0 placeholder:text-white/35"
                 />
               </div>
             </div>
@@ -59,48 +61,50 @@ export const Header = ({ toggleSidebar, user }) => {
             <div className="flex items-center gap-1 md:gap-3">
               <button
                 onClick={() => setShowNotifications(true)}
-                className="relative p-2 hover:bg-white/10 rounded-lg"
+                className="relative rounded-lg p-2 hover:bg-white/10"
               >
                 <IoNotifications size={20} className="text-white/70" />
-                <span className="absolute top-1 right-1 w-2 h-2 bg-danger rounded-full"></span>
+                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-danger" />
               </button>
 
-              <button className="p-2 hover:bg-white/10 rounded-lg">
+              <button onClick={() => setShowSettings(true)} className="rounded-lg p-2 hover:bg-white/10">
                 <IoSettings size={20} className="text-white/70" />
               </button>
 
               <div className="relative">
                 <button
-                  onClick={() => setShowProfileMenu(!showProfileMenu)}
-                  className="flex items-center gap-3 p-2 hover:bg-white/10 rounded-xl"
+                  onClick={() => setShowProfileMenu((value) => !value)}
+                  className="flex items-center gap-3 rounded-xl p-2 hover:bg-white/10"
                 >
-                  <div className="w-8 h-8 bg-primary text-white rounded-full flex items-center justify-center font-bold">
-                    {user?.initial || 'A'}
+                  <div className="flex h-8 w-8 items-center justify-center rounded-full bg-primary font-bold text-white">
+                    {user?.initial || 'U'}
                   </div>
-                  <div className="text-left hidden md:block">
-                    <p className="text-sm font-semibold text-white">{user?.name || 'Admin'}</p>
-                    <p className="text-xs text-white/50">{user?.email || 'admin@jira.com'}</p>
+                  <div className="hidden text-left md:block">
+                    <p className="text-sm font-semibold text-white">{user?.name || 'Workspace User'}</p>
+                    <p className="text-xs text-white/50">
+                      {user?.role || 'Member'} - {user?.email || 'user@jiraflow.com'}
+                    </p>
                   </div>
                 </button>
 
                 {showProfileMenu && (
-                  <div className="absolute right-0 mt-2 w-48 bg-[#101318] border border-white/10 rounded-xl shadow-2xl py-2 z-50">
-                    {profileMenuItems.map((item, idx) => (
+                  <div className="absolute right-0 z-50 mt-2 w-48 rounded-xl border border-white/10 bg-[#101318] py-2 shadow-2xl">
+                    {profileMenuItems.map((item, idx) =>
                       item.divider ? (
                         <hr key={idx} className="my-2 border-white/10" />
                       ) : (
                         <button
                           key={idx}
                           onClick={() => handleProfileMenuClick(item.action)}
-                          className={`w-full text-left px-4 py-2 hover:bg-white/10 flex items-center gap-2 ${
+                          className={`flex w-full items-center gap-2 px-4 py-2 text-left ${
                             item.label === 'Logout' ? 'text-danger' : 'text-white/80'
-                          }`}
+                          } hover:bg-white/10`}
                         >
                           {item.label === 'Logout' && <IoLogOut />}
                           {item.label}
                         </button>
                       )
-                    ))}
+                    )}
                   </div>
                 )}
               </div>
@@ -109,7 +113,6 @@ export const Header = ({ toggleSidebar, user }) => {
         </div>
       </header>
 
-      {/* Notifications Modal */}
       {showNotifications && (
         <Modal
           isOpen={showNotifications}
@@ -119,58 +122,63 @@ export const Header = ({ toggleSidebar, user }) => {
         >
           <div className="space-y-2">
             {notifications.map((notif) => (
-              <div key={notif.id} className="p-4 border border-white/10 rounded-xl hover:bg-white/5">
-                <p className="font-semibold text-white text-sm">{notif.title}</p>
-                <p className="text-white/65 text-sm mt-1">{notif.message}</p>
-                <p className="text-white/40 text-xs mt-2">{notif.time}</p>
+              <div key={notif.id} className="rounded-xl border border-white/10 p-4 hover:bg-white/5">
+                <p className="text-sm font-semibold text-white">{notif.title}</p>
+                <p className="mt-1 text-sm text-white/65">{notif.message}</p>
+                <p className="mt-2 text-xs text-white/40">{notif.time}</p>
               </div>
             ))}
           </div>
         </Modal>
       )}
 
-      {/* Admin Settings Modal */}
       {showSettings && (
         <Modal
           isOpen={showSettings}
           onClose={() => setShowSettings(false)}
-          title="Admin Panel"
+          title={isAdmin ? 'Admin Panel' : 'Workspace Overview'}
           size="lg"
         >
           <div className="space-y-6">
             <div>
-              <h3 className="font-semibold text-white mb-4">System Status</h3>
+              <h3 className="mb-4 font-semibold text-white">Workspace Status</h3>
               <div className="grid grid-cols-2 gap-4">
-                <div className="p-3 border border-white/10 rounded-xl bg-white/5">
-                  <p className="text-xs text-white/55">System Health</p>
-                  <p className="text-2xl font-bold text-success mt-1">99.8%</p>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xs text-white/55">{isAdmin ? 'System Health' : 'Assigned Focus'}</p>
+                  <p className="mt-1 text-2xl font-bold text-success">{isAdmin ? '99.8%' : 'High'}</p>
                 </div>
-                <div className="p-3 border border-white/10 rounded-xl bg-white/5">
-                  <p className="text-xs text-white/55">API Uptime</p>
-                  <p className="text-2xl font-bold text-success mt-1">99.9%</p>
+                <div className="rounded-xl border border-white/10 bg-white/5 p-3">
+                  <p className="text-xs text-white/55">{isAdmin ? 'API Uptime' : 'Role Access'}</p>
+                  <p className="mt-1 text-2xl font-bold text-success">{isAdmin ? '99.9%' : user?.role || 'Member'}</p>
                 </div>
               </div>
             </div>
 
-            <div>
-              <h3 className="font-semibold text-white mb-3">Feature Toggles</h3>
-              <div className="space-y-2">
-                {['Maintenance Mode', 'Allow Signups', 'Enable API', 'Analytics'].map((feature) => (
-                  <div key={feature} className="flex justify-between items-center p-2 rounded-lg bg-white/5">
-                    <span className="text-sm text-white/80">{feature}</span>
-                    <button className="w-10 h-6 bg-white/20 rounded-full relative">
-                      <span className="absolute top-1 left-1 w-4 h-4 bg-white rounded-full"></span>
-                    </button>
-                  </div>
-                ))}
+            {isAdmin && (
+              <div>
+                <h3 className="mb-3 font-semibold text-white">Feature Toggles</h3>
+                <div className="space-y-2">
+                  {['Maintenance Mode', 'Allow Signups', 'Enable API', 'Analytics'].map((feature) => (
+                    <div key={feature} className="flex items-center justify-between rounded-lg bg-white/5 p-2">
+                      <span className="text-sm text-white/80">{feature}</span>
+                      <button className="relative h-6 w-10 rounded-full bg-white/20">
+                        <span className="absolute left-1 top-1 h-4 w-4 rounded-full bg-white" />
+                      </button>
+                    </div>
+                  ))}
+                </div>
               </div>
-            </div>
+            )}
 
             <div>
-              <h3 className="font-semibold text-white mb-3">Maintenance Tasks</h3>
+              <h3 className="mb-3 font-semibold text-white">{isAdmin ? 'Maintenance Tasks' : 'Quick Actions'}</h3>
               <div className="grid grid-cols-2 gap-2">
-                {['Clear Cache', 'Optimize DB', 'Backup Data', 'Reset System'].map((task) => (
-                  <Button key={task} variant="outline" size="sm">{task}</Button>
+                {(isAdmin
+                  ? ['Clear Cache', 'Optimize DB', 'Backup Data', 'Reset System']
+                  : ['My Issues', 'My Projects', 'Notifications', 'Profile']).map((task) => (
+                  <Button key={task} variant="outline" size="sm">
+                    {task}
+                  </Button>
                 ))}
               </div>
             </div>
@@ -180,4 +188,3 @@ export const Header = ({ toggleSidebar, user }) => {
     </>
   );
 };
-

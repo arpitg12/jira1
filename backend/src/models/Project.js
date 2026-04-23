@@ -17,6 +17,12 @@ const projectSchema = new mongoose.Schema(
       ref: 'Workflow',
       required: true,
     },
+    visibleToUsers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     active: {
       type: Boolean,
       default: true,

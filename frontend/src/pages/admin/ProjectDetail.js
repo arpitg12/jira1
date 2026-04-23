@@ -1,30 +1,40 @@
-import React, { useState, useEffect } from 'react';
-import { useParams, useNavigate } from 'react-router-dom';
+import React, { useCallback, useEffect, useState } from 'react';
+import { useNavigate, useParams } from 'react-router-dom';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Card, Breadcrumb, Button, Modal } from '../../components/common';
-import { IoAdd, IoTrash, IoPencil, IoSearch, IoClose } from 'react-icons/io5';
+import { IoAdd, IoPencil, IoSearch, IoTrash } from 'react-icons/io5';
 import {
-  getProjectById,
-  getIssues,
   createIssue,
-  updateIssue,
   deleteIssue,
+  getIssues,
+  getProjectById,
   getUsers,
+  updateIssue,
 } from '../../services/api';
+import { useAuth } from '../../context/AuthContext';
 
 const DEFAULT_STATUS_OPTIONS = ['To Do', 'In Progress', 'In Review', 'Done'];
+
+const emptyIssueForm = {
+  title: '',
+  description: '',
+  issueType: 'Task',
+  priority: 'Medium',
+  status: 'To Do',
+  assignee: '',
+  reviewAssignee: '',
+  reporter: '',
+};
 
 const ProjectDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
-  
+  const { isAdmin } = useAuth();
   const [project, setProject] = useState(null);
   const [issues, setIssues] = useState([]);
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-
-  // Search and filter states
   const [searchTerm, setSearchTerm] = useState('');
   const [filters, setFilters] = useState({
     status: '',
@@ -32,45 +42,22 @@ const ProjectDetail = () => {
     assignee: '',
   });
   const [filteredIssues, setFilteredIssues] = useState([]);
-
-  // Modal states
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
-
-  // Form states
-  const [issueForm, setIssueForm] = useState({
-    title: '',
-    description: '',
-    issueType: 'Task',
-    priority: 'Medium',
-    status: 'To Do',
-    assignee: '',
-    reviewAssignee: '',
-    reporter: '',
-  });
+  const [issueForm, setIssueForm] = useState(emptyIssueForm);
   const [selectedIssue, setSelectedIssue] = useState(null);
 
-  // Fetch data on component mount
-  useEffect(() => {
-    fetchData();
-  }, [id]);
-
-  // Apply search and filters whenever issues, searchTerm, or filters change
-  useEffect(() => {
-    applyFiltersAndSearch();
-  }, [issues, searchTerm, filters]);
-
-  const fetchData = async () => {
+  const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [projectData, issuesData, usersData] = await Promise.all([
         getProjectById(id),
         getIssues(`?project=${id}`),
-        getUsers(),
+        isAdmin ? getUsers() : Promise.resolve([]),
       ]);
       setProject(projectData);
-      setIssues(issuesData);
-      setUsers(usersData);
+      setIssues(issuesData || []);
+      setUsers(usersData || []);
       setError('');
     } catch (err) {
       setError('Failed to fetch project data');
@@ -78,10 +65,10 @@ const ProjectDetail = () => {
     } finally {
       setLoading(false);
     }
-  };
+  }, [id, isAdmin]);
 
-  const applyFiltersAndSearch = () => {
-    let filtered = issues.filter((issue) => {
+  const applyFiltersAndSearch = useCallback(() => {
+    const filtered = issues.filter((issue) => {
       const matchesSearch =
         issue.title.toLowerCase().includes(searchTerm.toLowerCase()) ||
         issue.issueId.toLowerCase().includes(searchTerm.toLowerCase()) ||
@@ -90,13 +77,25 @@ const ProjectDetail = () => {
       const matchesStatus = !filters.status || issue.status === filters.status;
       const matchesPriority = !filters.priority || issue.priority === filters.priority;
       const matchesAssignee =
-        !filters.assignee ||
-        (issue.assignee && issue.assignee._id === filters.assignee);
+        !filters.assignee || (issue.assignee && issue.assignee._id === filters.assignee);
 
       return matchesSearch && matchesStatus && matchesPriority && matchesAssignee;
     });
 
     setFilteredIssues(filtered);
+  }, [filters, issues, searchTerm]);
+
+  useEffect(() => {
+    fetchData();
+  }, [fetchData]);
+
+  useEffect(() => {
+    applyFiltersAndSearch();
+  }, [applyFiltersAndSearch]);
+
+  const resetIssueForm = () => {
+    setIssueForm(emptyIssueForm);
+    setSelectedIssue(null);
   };
 
   const handleCreateIssue = async (e) => {
@@ -144,7 +143,6 @@ const ProjectDetail = () => {
       });
       resetIssueForm();
       setIsEditModalOpen(false);
-      setSelectedIssue(null);
       await fetchData();
       alert('Issue updated successfully!');
     } catch (err) {
@@ -179,19 +177,6 @@ const ProjectDetail = () => {
     setIsEditModalOpen(true);
   };
 
-  const resetIssueForm = () => {
-    setIssueForm({
-      title: '',
-      description: '',
-      issueType: 'Task',
-      priority: 'Medium',
-      status: 'To Do',
-      assignee: '',
-      reviewAssignee: '',
-      reporter: '',
-    });
-  };
-
   const handleResetFilters = () => {
     setSearchTerm('');
     setFilters({ status: '', priority: '', assignee: '' });
@@ -214,13 +199,13 @@ const ProjectDetail = () => {
     'To Do': 'bg-gray-100 text-gray-800',
     'In Progress': 'bg-blue-100 text-blue-800',
     'In Review': 'bg-purple-100 text-purple-800',
-    'Done': 'bg-green-100 text-green-800',
+    Done: 'bg-green-100 text-green-800',
   };
 
   if (loading) {
     return (
       <AdminLayout>
-        <div className="text-center py-8">Loading project...</div>
+        <div className="py-8 text-center">Loading project...</div>
       </AdminLayout>
     );
   }
@@ -228,14 +213,14 @@ const ProjectDetail = () => {
   if (!project) {
     return (
       <AdminLayout>
-        <div className="text-center py-8 text-red-600">Project not found</div>
+        <div className="py-8 text-center text-red-600">Project not found</div>
       </AdminLayout>
     );
   }
 
   return (
     <AdminLayout>
-      <div className="-mx-3 md:-mx-5 -my-3 md:-my-5 px-3 md:px-6 py-4 md:py-6 ui-dark-page min-h-[calc(100vh-120px)]">
+      <div className="-mx-3 -my-3 min-h-[calc(100vh-120px)] ui-dark-page px-3 py-4 md:-mx-5 md:px-6 md:py-6">
         <Breadcrumb
           items={[
             { label: 'Home', href: '/admin' },
@@ -244,13 +229,12 @@ const ProjectDetail = () => {
           ]}
         />
 
-        {/* Project Header */}
         <div className="mb-4">
-          <div className="flex items-start justify-between mb-3">
+          <div className="mb-3 flex items-start justify-between">
             <div>
-              <h1 className="text-2xl font-bold text-dark mb-1">{project.name}</h1>
+              <h1 className="mb-1 text-2xl font-bold text-dark">{project.name}</h1>
               {project.description && (
-                <p className="text-gray-600 text-xs mb-2">{project.description}</p>
+                <p className="mb-2 text-xs text-gray-600">{project.description}</p>
               )}
               <div className="flex items-center gap-3 text-xs">
                 <span className="text-gray-600">
@@ -262,20 +246,22 @@ const ProjectDetail = () => {
               </div>
             </div>
             <div className="flex gap-2">
-              <Button
-                variant="primary"
-                className="flex items-center gap-2 text-sm py-2 px-3"
-                onClick={() => {
-                  resetIssueForm();
-                  setIsCreateModalOpen(true);
-                }}
-              >
-                <IoAdd size={14} /> Create Issue
-              </Button>
+              {isAdmin && (
+                <Button
+                  variant="primary"
+                  className="flex items-center gap-2 px-3 py-2 text-sm"
+                  onClick={() => {
+                    resetIssueForm();
+                    setIsCreateModalOpen(true);
+                  }}
+                >
+                  <IoAdd size={14} /> Create Issue
+                </Button>
+              )}
               <Button
                 variant="secondary"
                 onClick={() => navigate('/admin/projects')}
-                className="text-sm py-2 px-3"
+                className="px-3 py-2 text-sm"
               >
                 Back
               </Button>
@@ -284,15 +270,13 @@ const ProjectDetail = () => {
         </div>
 
         {error && (
-          <div className="mb-3 p-2 bg-red-100 border border-red-300 text-red-700 rounded text-xs">
+          <div className="mb-3 rounded border border-red-300 bg-red-100 p-2 text-xs text-red-700">
             {error}
           </div>
         )}
 
-        {/* Search and Filter Section */}
         <Card className="mb-4">
           <div className="space-y-3">
-            {/* Search Bar */}
             <div className="relative">
               <IoSearch className="absolute left-2 top-2 text-gray-400" size={16} />
               <input
@@ -300,22 +284,17 @@ const ProjectDetail = () => {
                 placeholder="Search by title, ID, or description..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full pl-8 pr-3 py-2 border border-gray-300 rounded text-sm focus:border-primary outline-none"
+                className="w-full rounded border border-gray-300 py-2 pl-8 pr-3 text-sm outline-none focus:border-primary"
               />
             </div>
 
-            {/* Filter Row */}
-            <div className="grid grid-cols-1 md:grid-cols-5 gap-2">
+            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
               <div>
-                <label className="block text-xs font-semibold text-dark mb-1">
-                  Status
-                </label>
+                <label className="mb-1 block text-xs font-semibold text-dark">Status</label>
                 <select
                   value={filters.status}
-                  onChange={(e) =>
-                    setFilters({ ...filters, status: e.target.value })
-                  }
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:border-primary outline-none text-xs"
+                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-primary"
                 >
                   <option value="">All Status</option>
                   {resolvedStatusOptions.map((status) => (
@@ -327,15 +306,11 @@ const ProjectDetail = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark mb-1">
-                  Priority
-                </label>
+                <label className="mb-1 block text-xs font-semibold text-dark">Priority</label>
                 <select
                   value={filters.priority}
-                  onChange={(e) =>
-                    setFilters({ ...filters, priority: e.target.value })
-                  }
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:border-primary outline-none text-xs"
+                  onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-primary"
                 >
                   <option value="">All Priority</option>
                   {priorityOptions.map((priority) => (
@@ -347,54 +322,42 @@ const ProjectDetail = () => {
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark mb-1">
-                  Assignee
-                </label>
+                <label className="mb-1 block text-xs font-semibold text-dark">Assignee</label>
                 <select
                   value={filters.assignee}
-                  onChange={(e) =>
-                    setFilters({ ...filters, assignee: e.target.value })
-                  }
-                  className="w-full px-2 py-1 border border-gray-300 rounded focus:border-primary outline-none text-xs"
+                  onChange={(e) => setFilters({ ...filters, assignee: e.target.value })}
+                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-primary"
                 >
                   <option value="">All Assignees</option>
-                  {users.map((user) => (
-                    <option key={user._id} value={user._id}>
-                      {user.username}
+                  {users.map((member) => (
+                    <option key={member._id} value={member._id}>
+                      {member.username}
                     </option>
                   ))}
                 </select>
               </div>
 
               <div>
-                <label className="block text-xs font-semibold text-dark mb-1">
-                  &nbsp;
-                </label>
-                <Button
-                  variant="secondary"
-                  onClick={handleResetFilters}
-                  className="w-full text-xs py-1"
-                >
+                <label className="mb-1 block text-xs font-semibold text-dark">&nbsp;</label>
+                <Button variant="secondary" onClick={handleResetFilters} className="w-full py-1 text-xs">
                   Reset
                 </Button>
               </div>
 
               <div className="flex items-end">
                 <span className="text-xs text-gray-600">
-                  <span className="font-semibold">{filteredIssues.length}</span> of <span className="font-semibold">{issues.length}</span>
+                  <span className="font-semibold">{filteredIssues.length}</span> of{' '}
+                  <span className="font-semibold">{issues.length}</span>
                 </span>
               </div>
             </div>
           </div>
         </Card>
 
-        {/* Issues Table */}
         <div className="ui-dark-surface ui-shadow p-3">
-          <div className="flex items-center justify-between mb-2">
+          <div className="mb-2 flex items-center justify-between">
             <h2 className="text-sm font-semibold text-white/90">Project Issues</h2>
-            <span className="text-xs text-white/50">
-              {filteredIssues.length} visible
-            </span>
+            <span className="text-xs text-white/50">{filteredIssues.length} visible</span>
           </div>
 
           <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/5">
@@ -419,63 +382,67 @@ const ProjectDetail = () => {
                       className="ui-dark-tr cursor-pointer"
                       onClick={() => navigate(`/admin/issue/${issue._id}`)}
                     >
-                      <td className="px-3 py-2 text-xs font-semibold text-white/55 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-3 py-2 text-xs font-semibold text-white/55">
                         {issue.issueId}
                       </td>
                       <td className="px-3 py-2">
                         <div className="min-w-[180px]">
-                          <p className="text-sm font-semibold text-white truncate">{issue.title}</p>
+                          <p className="truncate text-sm font-semibold text-white">{issue.title}</p>
                           <p className="text-xs text-white/40">{issue.issueType}</p>
                         </div>
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`text-xs font-semibold whitespace-nowrap ${priorityColors[issue.priority]}`}>
+                        <span className={`whitespace-nowrap text-xs font-semibold ${priorityColors[issue.priority]}`}>
                           {issue.priority}
                         </span>
                       </td>
                       <td className="px-3 py-2">
-                        <span className={`text-xs px-2 py-1 rounded-md whitespace-nowrap ${statusColors[issue.status]}`}>
+                        <span className={`whitespace-nowrap rounded-md px-2 py-1 text-xs ${statusColors[issue.status]}`}>
                           {issue.status}
                         </span>
                       </td>
-                      <td className="px-3 py-2 text-sm text-white/75 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-3 py-2 text-sm text-white/75">
                         {issue.assignee?.username || 'Unassigned'}
                       </td>
-                      <td className="px-3 py-2 text-sm text-white/75 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-3 py-2 text-sm text-white/75">
                         {issue.reviewAssignee?.username || 'Unassigned'}
                       </td>
-                      <td className="px-3 py-2 text-sm text-white/75 whitespace-nowrap">
+                      <td className="whitespace-nowrap px-3 py-2 text-sm text-white/75">
                         {issue.reporter?.username || 'Unassigned'}
                       </td>
                       <td className="px-3 py-2" onClick={(e) => e.stopPropagation()}>
                         <div className="flex items-center gap-2">
-                          <button
-                            type="button"
-                            title="Edit"
-                            aria-label="Edit"
-                            onClick={() => openEditIssue(issue)}
-                            className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10"
-                          >
-                            <IoPencil size={16} className="text-white/70" />
-                          </button>
-                          <button
-                            type="button"
-                            title="Delete"
-                            aria-label="Delete"
-                            onClick={() => handleDeleteIssue(issue._id)}
-                            className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10"
-                          >
-                            <IoTrash size={16} className="text-red-300" />
-                          </button>
+                          {isAdmin && (
+                            <>
+                              <button
+                                type="button"
+                                title="Edit"
+                                aria-label="Edit"
+                                onClick={() => openEditIssue(issue)}
+                                className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                              >
+                                <IoPencil size={16} className="text-white/70" />
+                              </button>
+                              <button
+                                type="button"
+                                title="Delete"
+                                aria-label="Delete"
+                                onClick={() => handleDeleteIssue(issue._id)}
+                                className="rounded-lg border border-white/10 bg-white/5 p-2 hover:bg-white/10"
+                              >
+                                <IoTrash size={16} className="text-red-300" />
+                              </button>
+                            </>
+                          )}
                         </div>
                       </td>
                     </tr>
                   ))
                 ) : (
                   <tr>
-                    <td colSpan="8" className="px-3 py-10 text-center text-white/50 text-sm">
+                    <td colSpan="8" className="px-3 py-10 text-center text-sm text-white/50">
                       {issues.length === 0
-                        ? 'No issues in this project yet. Create one to get started!'
+                        ? 'No issues in this project yet.'
                         : 'No issues match your search or filters.'}
                     </td>
                   </tr>
@@ -485,56 +452,36 @@ const ProjectDetail = () => {
           </div>
         </div>
 
-        {/* Create Issue Modal */}
-        <Modal
-          isOpen={isCreateModalOpen}
-          onClose={() => {
-            setIsCreateModalOpen(false);
-            resetIssueForm();
-          }}
-          title="Create New Issue"
-        >
+        <Modal isOpen={isCreateModalOpen} onClose={() => setIsCreateModalOpen(false)} title="Create New Issue">
           <form onSubmit={handleCreateIssue} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-dark mb-2">
-                Issue Title
-              </label>
+              <label className="mb-2 block text-sm font-semibold text-dark">Issue Title</label>
               <input
                 type="text"
                 placeholder="Enter issue title"
                 value={issueForm.title}
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, title: e.target.value })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-dark mb-2">
-                Description
-              </label>
+              <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
               <textarea
                 placeholder="Enter description (optional)"
                 value={issueForm.description}
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, description: e.target.value })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                onChange={(e) => setIssueForm({ ...issueForm, description: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Issue Type
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Issue Type</label>
                 <select
                   value={issueForm.issueType}
-                  onChange={(e) =>
-                    setIssueForm({ ...issueForm, issueType: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, issueType: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   <option value="Task">Task</option>
                   <option value="Bug">Bug</option>
@@ -543,15 +490,11 @@ const ProjectDetail = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Priority
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Priority</label>
                 <select
                   value={issueForm.priority}
-                  onChange={(e) =>
-                    setIssueForm({ ...issueForm, priority: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, priority: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
@@ -560,17 +503,13 @@ const ProjectDetail = () => {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Status
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Status</label>
                 <select
                   value={issueForm.status}
-                  onChange={(e) =>
-                    setIssueForm({ ...issueForm, status: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, status: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   {resolvedStatusOptions.map((status) => (
                     <option key={status} value={status}>
@@ -580,65 +519,47 @@ const ProjectDetail = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Assignee
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Assignee</label>
                 <select
                   value={issueForm.assignee}
-                  onChange={(e) =>
-                    setIssueForm({ ...issueForm, assignee: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, assignee: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   <option value="">-- Select assignee --</option>
-                  {users.map((user) => (
-                    <option key={user._id} value={user._id}>
-                      {user.username}
+                  {users.map((member) => (
+                    <option key={member._id} value={member._id}>
+                      {member.username}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Reporter
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Reporter</label>
                 <select
                   value={issueForm.reporter}
-                  onChange={(e) =>
-                    setIssueForm({
-                      ...issueForm,
-                      reporter: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, reporter: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   <option value="">-- Select reporter --</option>
-                  {users.map((user) => (
-                    <option key={user._id} value={user._id}>
-                      {user.username}
+                  {users.map((member) => (
+                    <option key={member._id} value={member._id}>
+                      {member.username}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-dark mb-2">
-                Reviewer
-              </label>
+              <label className="mb-2 block text-sm font-semibold text-dark">Reviewer</label>
               <select
                 value={issueForm.reviewAssignee}
-                onChange={(e) =>
-                  setIssueForm({
-                    ...issueForm,
-                    reviewAssignee: e.target.value,
-                  })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                onChange={(e) => setIssueForm({ ...issueForm, reviewAssignee: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
               >
                 <option value="">-- Select reviewer --</option>
-                {users.map((user) => (
-                  <option key={user._id} value={user._id}>
-                    {user.username}
+                {users.map((member) => (
+                  <option key={member._id} value={member._id}>
+                    {member.username}
                   </option>
                 ))}
               </select>
@@ -648,6 +569,7 @@ const ProjectDetail = () => {
                 Create Issue
               </Button>
               <Button
+                type="button"
                 variant="secondary"
                 onClick={() => {
                   setIsCreateModalOpen(false);
@@ -660,57 +582,36 @@ const ProjectDetail = () => {
           </form>
         </Modal>
 
-        {/* Edit Issue Modal */}
-        <Modal
-          isOpen={isEditModalOpen}
-          onClose={() => {
-            setIsEditModalOpen(false);
-            resetIssueForm();
-            setSelectedIssue(null);
-          }}
-          title="Edit Issue"
-        >
+        <Modal isOpen={isEditModalOpen} onClose={() => setIsEditModalOpen(false)} title="Edit Issue">
           <form onSubmit={handleEditIssue} className="space-y-4">
             <div>
-              <label className="block text-sm font-semibold text-dark mb-2">
-                Issue Title
-              </label>
+              <label className="mb-2 block text-sm font-semibold text-dark">Issue Title</label>
               <input
                 type="text"
                 placeholder="Enter issue title"
                 value={issueForm.title}
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, title: e.target.value })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 required
               />
             </div>
             <div>
-              <label className="block text-sm font-semibold text-dark mb-2">
-                Description
-              </label>
+              <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
               <textarea
                 placeholder="Enter description"
                 value={issueForm.description}
-                onChange={(e) =>
-                  setIssueForm({ ...issueForm, description: e.target.value })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                onChange={(e) => setIssueForm({ ...issueForm, description: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 rows={3}
               />
             </div>
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Issue Type
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Issue Type</label>
                 <select
                   value={issueForm.issueType}
-                  onChange={(e) =>
-                    setIssueForm({ ...issueForm, issueType: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, issueType: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   <option value="Task">Task</option>
                   <option value="Bug">Bug</option>
@@ -719,15 +620,11 @@ const ProjectDetail = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Priority
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Priority</label>
                 <select
                   value={issueForm.priority}
-                  onChange={(e) =>
-                    setIssueForm({ ...issueForm, priority: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, priority: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   <option value="Low">Low</option>
                   <option value="Medium">Medium</option>
@@ -736,17 +633,13 @@ const ProjectDetail = () => {
                 </select>
               </div>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Status
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Status</label>
                 <select
                   value={issueForm.status}
-                  onChange={(e) =>
-                    setIssueForm({ ...issueForm, status: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, status: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   {resolvedStatusOptions.map((status) => (
                     <option key={status} value={status}>
@@ -756,65 +649,47 @@ const ProjectDetail = () => {
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Assignee
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Assignee</label>
                 <select
                   value={issueForm.assignee}
-                  onChange={(e) =>
-                    setIssueForm({ ...issueForm, assignee: e.target.value })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, assignee: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   <option value="">-- Select assignee --</option>
-                  {users.map((user) => (
-                    <option key={user._id} value={user._id}>
-                      {user.username}
+                  {users.map((member) => (
+                    <option key={member._id} value={member._id}>
+                      {member.username}
                     </option>
                   ))}
                 </select>
               </div>
               <div>
-                <label className="block text-sm font-semibold text-dark mb-2">
-                  Reporter
-                </label>
+                <label className="mb-2 block text-sm font-semibold text-dark">Reporter</label>
                 <select
                   value={issueForm.reporter}
-                  onChange={(e) =>
-                    setIssueForm({
-                      ...issueForm,
-                      reporter: e.target.value,
-                    })
-                  }
-                  className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                  onChange={(e) => setIssueForm({ ...issueForm, reporter: e.target.value })}
+                  className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 >
                   <option value="">-- Select reporter --</option>
-                  {users.map((user) => (
-                    <option key={user._id} value={user._id}>
-                      {user.username}
+                  {users.map((member) => (
+                    <option key={member._id} value={member._id}>
+                      {member.username}
                     </option>
                   ))}
                 </select>
               </div>
             </div>
             <div>
-              <label className="block text-sm font-semibold text-dark mb-2">
-                Reviewer
-              </label>
+              <label className="mb-2 block text-sm font-semibold text-dark">Reviewer</label>
               <select
                 value={issueForm.reviewAssignee}
-                onChange={(e) =>
-                  setIssueForm({
-                    ...issueForm,
-                    reviewAssignee: e.target.value,
-                  })
-                }
-                className="w-full px-4 py-2 border border-gray-300 rounded-lg focus:border-primary outline-none"
+                onChange={(e) => setIssueForm({ ...issueForm, reviewAssignee: e.target.value })}
+                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
               >
                 <option value="">-- Select reviewer --</option>
-                {users.map((user) => (
-                  <option key={user._id} value={user._id}>
-                    {user.username}
+                {users.map((member) => (
+                  <option key={member._id} value={member._id}>
+                    {member.username}
                   </option>
                 ))}
               </select>
@@ -824,11 +699,11 @@ const ProjectDetail = () => {
                 Update Issue
               </Button>
               <Button
+                type="button"
                 variant="secondary"
                 onClick={() => {
                   setIsEditModalOpen(false);
                   resetIssueForm();
-                  setSelectedIssue(null);
                 }}
               >
                 Cancel

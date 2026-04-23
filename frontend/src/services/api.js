@@ -1,24 +1,67 @@
-const API_URL = 'http://localhost:5000/api';
+const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+const TOKEN_KEY = 'jira_auth_token';
+const USER_KEY = 'jira_auth_user';
+
+const parseJsonSafely = async (response) => {
+  try {
+    return await response.json();
+  } catch (error) {
+    return null;
+  }
+};
+
+export const getStoredToken = () => localStorage.getItem(TOKEN_KEY) || '';
+
+export const getStoredUser = () => {
+  try {
+    const rawUser = localStorage.getItem(USER_KEY);
+    return rawUser ? JSON.parse(rawUser) : null;
+  } catch (error) {
+    return null;
+  }
+};
+
+export const storeAuthSession = (token, user) => {
+  localStorage.setItem(TOKEN_KEY, token);
+  localStorage.setItem(USER_KEY, JSON.stringify(user));
+};
+
+export const clearAuthSession = () => {
+  localStorage.removeItem(TOKEN_KEY);
+  localStorage.removeItem(USER_KEY);
+};
 
 export const apiCall = async (endpoint, options = {}) => {
   const url = `${API_URL}${endpoint}`;
+  const token = getStoredToken();
+  const isFormData = options.body instanceof FormData;
+
   const response = await fetch(url, {
     headers: {
-      'Content-Type': 'application/json',
+      ...(isFormData ? {} : { 'Content-Type': 'application/json' }),
+      ...(token ? { Authorization: `Bearer ${token}` } : {}),
       ...options.headers,
     },
     ...options,
   });
 
+  const data = await parseJsonSafely(response);
+
   if (!response.ok) {
-    const error = await response.json();
-    throw new Error(error.error || 'API call failed');
+    throw new Error(data?.error || 'API call failed');
   }
 
-  return await response.json();
+  return data;
 };
 
-// User APIs
+export const loginUser = (data) =>
+  apiCall('/users/login', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const getCurrentUser = () => apiCall('/users/me');
+
 export const createUser = (data) =>
   apiCall('/users', {
     method: 'POST',
@@ -35,7 +78,6 @@ export const updateUser = (id, data) =>
 export const deleteUser = (id) =>
   apiCall(`/users/${id}`, { method: 'DELETE' });
 
-// Workflow APIs
 export const createWorkflow = (data) =>
   apiCall('/workflows', {
     method: 'POST',
@@ -64,7 +106,6 @@ export const removeStateFromWorkflow = (id, data) =>
     body: JSON.stringify(data),
   });
 
-// Global State APIs
 export const createGlobalState = (data) =>
   apiCall('/states', {
     method: 'POST',
@@ -81,7 +122,6 @@ export const updateGlobalState = (id, data) =>
 export const deleteGlobalState = (id) =>
   apiCall(`/states/${id}`, { method: 'DELETE' });
 
-// Issue APIs
 export const createIssue = (data) =>
   apiCall('/issues', {
     method: 'POST',
@@ -98,7 +138,6 @@ export const updateIssue = (id, data) =>
 export const deleteIssue = (id) =>
   apiCall(`/issues/${id}`, { method: 'DELETE' });
 
-// Project APIs
 export const createProject = (data) =>
   apiCall('/projects', {
     method: 'POST',

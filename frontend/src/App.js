@@ -1,7 +1,8 @@
 import React, { Suspense, lazy } from 'react';
-import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
+import { BrowserRouter as Router, Navigate, Outlet, Route, Routes } from 'react-router-dom';
+import { AuthProvider, getDefaultRouteForUser, useAuth } from './context/AuthContext';
 
-// Lazy load pages for better performance
+const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
 const Issues = lazy(() => import('./pages/admin/Issues'));
 const IssueDetail = lazy(() => import('./pages/admin/IssueDetail'));
@@ -13,36 +14,90 @@ const Reports = lazy(() => import('./pages/admin/Reports'));
 const Search = lazy(() => import('./pages/admin/Search'));
 
 const LoadingFallback = () => (
-  <div className="flex items-center justify-center min-h-screen bg-[#050608]">
+  <div className="flex min-h-screen items-center justify-center bg-[#050608]">
     <div className="text-center">
-      <div className="w-12 h-12 border-4 border-primary border-t-transparent rounded-full animate-spin mx-auto mb-4"></div>
+      <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       <p className="text-white/65">Loading...</p>
     </div>
   </div>
 );
 
-function App() {
+const ProtectedRoute = () => {
+  const { isAuthenticated } = useAuth();
+
+  if (!isAuthenticated) {
+    return <Navigate to="/" replace />;
+  }
+
+  return <Outlet />;
+};
+
+const AdminOnlyRoute = () => {
+  const { isAdmin, user } = useAuth();
+
+  if (!isAdmin) {
+    return <Navigate to={getDefaultRouteForUser(user)} replace />;
+  }
+
+  return <Outlet />;
+};
+
+const AppRoutes = () => {
+  const { isAuthenticated, isBootstrapping, user } = useAuth();
+
+  if (isBootstrapping) {
+    return <LoadingFallback />;
+  }
+
   return (
-    <Router>
-      <Suspense fallback={<LoadingFallback />}>
-        <Routes>
-          {/* Admin Routes */}
+    <Suspense fallback={<LoadingFallback />}>
+      <Routes>
+        <Route
+          path="/"
+          element={
+            isAuthenticated ? (
+              <Navigate to={getDefaultRouteForUser(user)} replace />
+            ) : (
+              <LandingPage />
+            )
+          }
+        />
+
+        <Route element={<ProtectedRoute />}>
           <Route path="/admin/dashboard" element={<Dashboard />} />
           <Route path="/admin/issue/:id" element={<IssueDetail />} />
           <Route path="/admin/issues" element={<Issues />} />
           <Route path="/admin/projects" element={<Projects />} />
           <Route path="/admin/projects/:id" element={<ProjectDetail />} />
-          <Route path="/admin/members" element={<Members />} />
-          <Route path="/admin/workflows" element={<WorkflowEditor />} />
-          <Route path="/admin/reports" element={<Reports />} />
-          <Route path="/admin/search" element={<Search />} />
 
-          {/* Default Routes */}
-          <Route path="/" element={<Navigate to="/admin/dashboard" replace />} />
-          <Route path="/admin" element={<Navigate to="/admin/dashboard" replace />} />
-        </Routes>
-      </Suspense>
-    </Router>
+          <Route element={<AdminOnlyRoute />}>
+            <Route path="/admin/members" element={<Members />} />
+            <Route path="/admin/workflows" element={<WorkflowEditor />} />
+            <Route path="/admin/reports" element={<Reports />} />
+            <Route path="/admin/search" element={<Search />} />
+          </Route>
+        </Route>
+
+        <Route
+          path="/admin"
+          element={<Navigate to={isAuthenticated ? getDefaultRouteForUser(user) : '/'} replace />}
+        />
+        <Route
+          path="*"
+          element={<Navigate to={isAuthenticated ? getDefaultRouteForUser(user) : '/'} replace />}
+        />
+      </Routes>
+    </Suspense>
+  );
+};
+
+function App() {
+  return (
+    <AuthProvider>
+      <Router>
+        <AppRoutes />
+      </Router>
+    </AuthProvider>
   );
 }
 

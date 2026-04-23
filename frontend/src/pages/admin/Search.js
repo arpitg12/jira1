@@ -1,11 +1,11 @@
 import React, { useState } from 'react';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Card, Badge, Breadcrumb } from '../../components/common';
-import { IoSearch, IoClose } from 'react-icons/io5';
+import { IoSearch } from 'react-icons/io5';
 
 const Search = () => {
   const [searchTerm, setSearchTerm] = useState('');
-  const [results, setResults] = useState([
+  const [results] = useState([
     { id: 'JIR-001', title: 'Fix login bug', type: 'Bug', status: 'In Progress' },
     { id: 'JIR-002', title: 'Add dark mode', type: 'Feature', status: 'Review' },
     { id: 'JIR-003', title: 'Performance optimization', type: 'Task', status: 'To Do' },

@@ -1,7 +1,7 @@
 import React from 'react';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Card, Breadcrumb } from '../../components/common';
-import { LineChart, Line, BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
+import { BarChart, Bar, PieChart, Pie, Cell, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer } from 'recharts';
 
 const Reports = () => {
   const metrics = [

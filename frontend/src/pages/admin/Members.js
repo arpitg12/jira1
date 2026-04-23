@@ -1,6 +1,6 @@
 import React, { useState, useEffect } from 'react';
 import AdminLayout from '../../layouts/AdminLayout';
-import { Card, Badge, Button, Modal, Breadcrumb } from '../../components/common';
+import { Badge, Button, Modal, Breadcrumb } from '../../components/common';
 import { IoAdd, IoTrash } from 'react-icons/io5';
 import { getUsers, createUser, deleteUser } from '../../services/api';
 
@@ -12,7 +12,8 @@ const Members = () => {
   const [formData, setFormData] = useState({
     username: '',
     email: '',
-    password: ''
+    password: '',
+    role: 'Member'
   });
 
   const stats = [
@@ -53,7 +54,7 @@ const Members = () => {
     try {
       setLoading(true);
       await createUser(formData);
-      setFormData({ username: '', email: '', password: '' });
+      setFormData({ username: '', email: '', password: '', role: 'Member' });
       setIsAddUserModalOpen(false);
       await fetchMembers();
       alert('User created successfully!');
@@ -128,7 +129,7 @@ const Members = () => {
                         <td className="px-3 py-2 font-semibold text-white text-sm">{member.username}</td>
                         <td className="px-3 py-2 text-white/70 text-sm">{member.email}</td>
                         <td className="px-3 py-2">
-                          <Badge variant="info" size="sm">{member.role}</Badge>
+                          <Badge variant={member.role === 'Admin' ? 'danger' : 'info'} size="sm">{member.role}</Badge>
                         </td>
                         <td className="px-3 py-2">
                           <button 
@@ -193,11 +194,27 @@ const Members = () => {
                 required
               />
             </div>
+            <div>
+              <label className="block text-sm font-semibold text-dark mb-2">Role</label>
+              <select
+                name="role"
+                value={formData.role}
+                onChange={handleChange}
+                className="w-full"
+              >
+                <option value="Member">Member</option>
+                <option value="Lead">Lead</option>
+                <option value="Developer">Developer</option>
+                <option value="Designer">Designer</option>
+                <option value="QA">QA</option>
+                <option value="Admin">Admin</option>
+              </select>
+            </div>
             <div className="flex gap-2 pt-4">
-              <Button variant="primary" onClick={handleCreateUser} disabled={loading} size="sm">
+              <Button variant="primary" type="submit" disabled={loading} size="sm">
                 {loading ? 'Saving...' : 'Save'}
               </Button>
-              <Button variant="secondary" onClick={() => setIsAddUserModalOpen(false)} size="sm">Cancel</Button>
+              <Button type="button" variant="secondary" onClick={() => setIsAddUserModalOpen(false)} size="sm">Cancel</Button>
             </div>
           </form>
         </Modal>
