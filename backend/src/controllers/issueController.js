@@ -76,6 +76,9 @@ const findReplyById = (comments, replyId) => {
   return null;
 };
 
+const isCommentOwnerOrAdmin = (user, author) =>
+  isAdmin(user) || String(author?._id || author) === String(user?._id);
+
 export const createIssue = async (req, res) => {
   try {
     const {
@@ -159,11 +162,6 @@ export const getIssues = async (req, res) => {
       filter.project = project
         ? { $in: accessibleProjectIds.filter((entry) => String(entry) === String(project)) }
         : { $in: accessibleProjectIds };
-      filter.$or = [
-        { assignee: req.user._id },
-        { reviewAssignee: req.user._id },
-        { reporter: req.user._id },
-      ];
     }
 
     const issues = await Issue.find(filter)
@@ -267,7 +265,7 @@ export const deleteIssue = async (req, res) => {
 
 export const addComment = async (req, res) => {
   try {
-    const { text, author } = req.body;
+    const { text } = req.body;
 
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Comment text is required' });
@@ -286,7 +284,7 @@ export const addComment = async (req, res) => {
 
     issue.comments.push({
       text: text.trim(),
-      author: isAdmin(req.user) ? author || req.user._id : req.user._id,
+      author: req.user._id,
       replies: [],
     });
     await issue.save();
@@ -320,6 +318,10 @@ export const updateComment = async (req, res) => {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
+    if (!isCommentOwnerOrAdmin(req.user, result.comment.author)) {
+      return res.status(403).json({ error: 'You can only edit your own comments' });
+    }
+
     result.comment.text = text.trim();
     await issue.save();
     await issue.populate(issuePopulate);
@@ -347,6 +349,10 @@ export const deleteComment = async (req, res) => {
       return res.status(404).json({ error: 'Comment not found' });
     }
 
+    if (!isCommentOwnerOrAdmin(req.user, comment.author)) {
+      return res.status(403).json({ error: 'You can only delete your own comments' });
+    }
+
     comment.deleteOne();
     await issue.save();
     await issue.populate(issuePopulate);
@@ -359,7 +365,7 @@ export const deleteComment = async (req, res) => {
 
 export const addReply = async (req, res) => {
   try {
-    const { text, author } = req.body;
+    const { text } = req.body;
 
     if (!text || !text.trim()) {
       return res.status(400).json({ error: 'Reply text is required' });
@@ -382,7 +388,7 @@ export const addReply = async (req, res) => {
 
     result.comment.replies.push({
       text: text.trim(),
-      author: isAdmin(req.user) ? author || req.user._id : req.user._id,
+      author: req.user._id,
     });
     await issue.save();
     await issue.populate(issuePopulate);
@@ -416,6 +422,10 @@ export const updateReply = async (req, res) => {
       return res.status(404).json({ error: 'Reply not found' });
     }
 
+    if (!isCommentOwnerOrAdmin(req.user, result.reply.author)) {
+      return res.status(403).json({ error: 'You can only edit your own replies' });
+    }
+
     result.reply.text = text.trim();
     await issue.save();
     await issue.populate(issuePopulate);
@@ -441,6 +451,10 @@ export const deleteReply = async (req, res) => {
     const result = findReplyById(issue.comments, req.params.replyId);
     if (!result || String(result.parentComment._id) !== String(req.params.commentId)) {
       return res.status(404).json({ error: 'Reply not found' });
+    }
+
+    if (!isCommentOwnerOrAdmin(req.user, result.reply.author)) {
+      return res.status(403).json({ error: 'You can only delete your own replies' });
     }
 
     result.reply.deleteOne();

@@ -123,11 +123,5 @@ export const isIssueVisibleToUser = (user, issue) => {
     return true;
   }
 
-  if (!hasProjectAccess(user, issue?.project)) {
-    return false;
-  }
-
-  return [issue?.assignee, issue?.reviewAssignee, issue?.reporter].some(
-    (entry) => String(entry?._id || entry) === String(user._id)
-  );
+  return hasProjectAccess(user, issue?.project);
 };

@@ -11,6 +11,7 @@ import {
 } from 'react-icons/io5';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Button } from '../../components/common';
+import { useAuth } from '../../context/AuthContext';
 import {
   addComment,
   addReply,
@@ -89,13 +90,6 @@ const createEditForm = (issueData) => ({
   reporter: issueData?.reporter?._id || '',
 });
 
-const getPreferredCommentAuthor = (issueData, usersData) =>
-  issueData?.reporter?._id ||
-  issueData?.assignee?._id ||
-  issueData?.reviewAssignee?._id ||
-  usersData?.[0]?._id ||
-  '';
-
 const DetailRow = ({ label, children }) => (
   <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
     <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.16em] text-white/40">{label}</p>
@@ -109,25 +103,30 @@ const PersonValue = ({ user, emptyLabel = 'Not set' }) => (
   </span>
 );
 
-const CommentActions = ({ onReply, onEdit, onDelete, showReply = true }) => (
+const CommentActions = ({ onReply, onEdit, onDelete, canManage = true, showReply = true }) => (
   <div className="mt-2 flex flex-wrap items-center gap-2 text-xs">
     {showReply && (
       <button type="button" onClick={onReply} className="text-white/45 hover:text-white">
         Reply
       </button>
     )}
-    <button type="button" onClick={onEdit} className="text-white/45 hover:text-white">
-      Edit
-    </button>
-    <button type="button" onClick={onDelete} className="text-red-300 hover:text-red-200">
-      Delete
-    </button>
+    {canManage && (
+      <>
+        <button type="button" onClick={onEdit} className="text-white/45 hover:text-white">
+          Edit
+        </button>
+        <button type="button" onClick={onDelete} className="text-red-300 hover:text-red-200">
+          Delete
+        </button>
+      </>
+    )}
   </div>
 );
 
 const IssueDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
+  const { user: currentUser, isAdmin } = useAuth();
 
   const [issue, setIssue] = useState(null);
   const [users, setUsers] = useState([]);
@@ -135,7 +134,6 @@ const IssueDetail = () => {
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
-  const [commentAuthorId, setCommentAuthorId] = useState('');
   const [newComment, setNewComment] = useState('');
   const [editForm, setEditForm] = useState(createEditForm(null));
   const [replyDraft, setReplyDraft] = useState({ commentId: '', text: '' });
@@ -149,7 +147,6 @@ const IssueDetail = () => {
       setIssue(issueData);
       setUsers(usersData);
       setEditForm(createEditForm(issueData));
-      setCommentAuthorId((current) => current || getPreferredCommentAuthor(issueData, usersData));
       setError('');
     } catch (err) {
       setError(err.message || 'Failed to load issue');
@@ -181,7 +178,6 @@ const IssueDetail = () => {
   const applyIssueUpdate = (updatedIssue) => {
     setIssue(updatedIssue);
     setEditForm(createEditForm(updatedIssue));
-    setCommentAuthorId((current) => current || getPreferredCommentAuthor(updatedIssue, users));
   };
 
   const resetInlineStates = () => {
@@ -230,7 +226,6 @@ const IssueDetail = () => {
       setBusyAction('comment-add');
       const response = await addComment(id, {
         text: newComment.trim(),
-        author: commentAuthorId || null,
       });
       applyIssueUpdate(response.issue || response);
       setNewComment('');
@@ -249,7 +244,6 @@ const IssueDetail = () => {
       setBusyAction(`reply-${commentId}`);
       const response = await addReply(id, commentId, {
         text: replyDraft.text.trim(),
-        author: commentAuthorId || null,
       });
       applyIssueUpdate(response.issue || response);
       setReplyDraft({ commentId: '', text: '' });
@@ -323,6 +317,9 @@ const IssueDetail = () => {
       </AdminLayout>
     );
   }
+
+  const canManageComment = (author) =>
+    isAdmin || String(author?._id || author) === String(currentUser?._id);
 
   return (
     <AdminLayout>
@@ -431,37 +428,30 @@ const IssueDetail = () => {
               </div>
 
               <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                <div className="grid gap-3 md:grid-cols-[180px_minmax(0,1fr)] md:items-start">
-                  <div>
-                    <label className="mb-1.5 block text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
-                      Comment As
-                    </label>
-                    <select value={commentAuthorId} onChange={(e) => setCommentAuthorId(e.target.value)} className="w-full">
-                      <option value="">Anonymous</option>
-                      {users.map((user) => (
-                        <option key={user._id} value={user._id}>{user.username}</option>
-                      ))}
-                    </select>
+                <div>
+                  <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
+                    Commenting As
                   </div>
-                  <div>
-                    <textarea
-                      value={newComment}
-                      onChange={(e) => setNewComment(e.target.value)}
-                      rows={2}
-                      className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm leading-6 text-white"
-                      placeholder="Add context, share updates, or leave a review note..."
-                    />
-                    <div className="mt-1.5 flex justify-end gap-2">
-                      {newComment && <Button variant="secondary" size="sm" onClick={() => setNewComment('')}>Clear</Button>}
-                      <Button
-                        variant="primary"
-                        size="sm"
-                        onClick={handleAddComment}
-                        disabled={busyAction === 'comment-add' || !newComment.trim()}
-                      >
-                        {busyAction === 'comment-add' ? 'Posting...' : 'Post Comment'}
-                      </Button>
-                    </div>
+                  <div className="mb-3 rounded-xl border border-white/10 bg-[#0d1015] px-3 py-2 text-sm text-white/75">
+                    {currentUser?.username || currentUser?.email || 'Signed-in user'}
+                  </div>
+                  <textarea
+                    value={newComment}
+                    onChange={(e) => setNewComment(e.target.value)}
+                    rows={2}
+                    className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm leading-6 text-white"
+                    placeholder="Add context, share updates, or leave a review note..."
+                  />
+                  <div className="mt-1.5 flex justify-end gap-2">
+                    {newComment && <Button type="button" variant="secondary" size="sm" onClick={() => setNewComment('')}>Clear</Button>}
+                    <Button
+                      variant="primary"
+                      size="sm"
+                      onClick={handleAddComment}
+                      disabled={busyAction === 'comment-add' || !newComment.trim()}
+                    >
+                      {busyAction === 'comment-add' ? 'Posting...' : 'Post Comment'}
+                    </Button>
                   </div>
                 </div>
               </div>
@@ -514,6 +504,7 @@ const IssueDetail = () => {
                                     setEditingTarget({ type: 'comment', commentId: comment._id, replyId: '', text: comment.text });
                                   }}
                                   onDelete={() => handleDeleteCommentItem(comment._id)}
+                                  canManage={canManageComment(comment.author)}
                                 />
                               </>
                             )}
@@ -536,7 +527,7 @@ const IssueDetail = () => {
                                   >
                                     {busyAction === `reply-${comment._id}` ? 'Replying...' : 'Reply'}
                                   </Button>
-                                  <Button variant="secondary" size="sm" onClick={resetInlineStates}>
+                                  <Button type="button" variant="secondary" size="sm" onClick={resetInlineStates}>
                                     Cancel
                                   </Button>
                                 </div>
@@ -573,7 +564,7 @@ const IssueDetail = () => {
                                             <Button variant="primary" size="sm" onClick={handleSaveEditedComment}>
                                               Save
                                             </Button>
-                                            <Button variant="secondary" size="sm" onClick={resetInlineStates}>
+                                            <Button type="button" variant="secondary" size="sm" onClick={resetInlineStates}>
                                               Cancel
                                             </Button>
                                           </div>
@@ -594,6 +585,7 @@ const IssueDetail = () => {
                                               });
                                             }}
                                             onDelete={() => handleDeleteCommentItem(comment._id, reply._id)}
+                                            canManage={canManageComment(reply.author)}
                                           />
                                         </>
                                       )}

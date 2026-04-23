@@ -35,14 +35,14 @@ const Issues = () => {
   const [users, setUsers] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
-  const [activeFilter, setActiveFilter] = useState(isAdmin ? 'All' : 'My Issues');
+  const [activeFilter, setActiveFilter] = useState('All');
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [issueForm, setIssueForm] = useState(emptyIssueForm);
   const [selectedIssue, setSelectedIssue] = useState(null);
 
   useEffect(() => {
-    setActiveFilter(isAdmin ? 'All' : 'My Issues');
+    setActiveFilter('All');
   }, [isAdmin]);
 
   const getWorkflowStatusOptionsForProject = (projectId) => {
@@ -168,19 +168,13 @@ const Issues = () => {
     Critical: 'text-red-600',
   };
 
-  const filterTabs = isAdmin
-    ? [
-        { key: 'All', label: 'All' },
-        { key: 'Bug', label: 'Bug' },
-        { key: 'Critical', label: 'Critical' },
-        { key: 'My Issues', label: 'My Issues' },
-        { key: 'In Progress', label: 'In Progress' },
-      ]
-    : [
-        { key: 'My Issues', label: 'My Issues' },
-        { key: 'Critical', label: 'Critical' },
-        { key: 'In Progress', label: 'In Progress' },
-      ];
+  const filterTabs = [
+    { key: 'All', label: 'All' },
+    { key: 'Bug', label: 'Bug' },
+    { key: 'Critical', label: 'Critical' },
+    { key: 'My Issues', label: 'My Items' },
+    { key: 'In Progress', label: 'In Progress' },
+  ];
 
   const filteredIssues = issues.filter((issue) => {
     if (activeFilter === 'All') return true;
@@ -214,11 +208,11 @@ const Issues = () => {
         />
         <div className="mb-4 flex items-center justify-between">
           <div>
-            <h1 className="text-xl font-bold text-white">{isAdmin ? 'Issues' : 'My Issues'}</h1>
+            <h1 className="text-xl font-bold text-white">Issues</h1>
             <p className="mt-1 text-sm text-white/55">
               {isAdmin
                 ? 'Full issue visibility across every project in the workspace.'
-                : 'Only your assigned, reviewed, and reported issues appear here.'}
+                : 'You can see every ticket inside the projects your account can access.'}
             </p>
           </div>
           {isAdmin && (

@@ -30,8 +30,8 @@ const AdminLayout = ({ children }) => {
       ]
     : [
         { label: 'Dashboard', href: '/admin/dashboard', icon: <IoHome /> },
-        { label: 'My Issues', href: '/admin/issues', icon: <IoCheckmark /> },
-        { label: 'My Projects', href: '/admin/projects', icon: <IoFolderOpen /> },
+        { label: 'Issues', href: '/admin/issues', icon: <IoCheckmark /> },
+        { label: 'Projects', href: '/admin/projects', icon: <IoFolderOpen /> },
       ];
 
   const handleLogout = () => {

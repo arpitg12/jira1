@@ -71,19 +71,19 @@ const Dashboard = () => {
       ]
     : [
         {
-          title: 'My Issues',
+          title: 'Visible Issues',
           value: issues.length,
           change: `${issues.filter((issue) => issue.priority === 'Critical').length} critical`,
           isPositive: issues.filter((issue) => issue.priority === 'Critical').length === 0,
         },
         {
-          title: 'My Open Work',
+          title: 'Open In Projects',
           value: issues.filter((issue) => issue.status !== 'Done').length,
           change: `${issues.filter((issue) => issue.status === 'In Progress').length} active`,
           isPositive: true,
         },
         {
-          title: 'My Projects',
+          title: 'Visible Projects',
           value: projects.length,
           change: `${projects.filter((project) => (project.visibleToUsers || []).length > 0).length} assigned`,
           isPositive: true,
@@ -125,7 +125,7 @@ const Dashboard = () => {
             <p className="mt-1 text-sm text-white/55">
               {isAdmin
                 ? 'Full workspace visibility for team, projects, and workflows.'
-                : 'A focused view of your assigned issues and approved projects.'}
+                : 'A focused view of the projects you can access and the tickets inside them.'}
             </p>
           </div>
           <div className="rounded-2xl border border-white/10 bg-white/5 px-4 py-3 text-right">
@@ -182,11 +182,9 @@ const Dashboard = () => {
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
                     <p className="text-xs uppercase tracking-[0.25em] text-white/35">Issue Ownership</p>
-                    <p className="mt-3 text-2xl font-bold text-white">
-                      {issues.filter((issue) => issue.assignee?._id === user?._id).length}
-                    </p>
+                    <p className="mt-3 text-2xl font-bold text-white">{issues.length}</p>
                     <p className="mt-2 text-sm leading-7 text-white/60">
-                      Tickets currently assigned to you in the filtered workspace.
+                      Tickets currently visible inside the projects you can access.
                     </p>
                   </div>
                 </div>
@@ -200,7 +198,7 @@ const Dashboard = () => {
                     <p className="mt-2 leading-7">
                       {isAdmin
                         ? 'You can manage members, workflows, and project visibility across the app.'
-                        : 'You only see your own issues, your approved projects, and workflow screens stay hidden.'}
+                        : 'You can see all tickets inside your allowed projects, and workflow screens stay hidden.'}
                     </p>
                   </div>
                   <div className="rounded-2xl border border-white/10 bg-white/5 p-4">
