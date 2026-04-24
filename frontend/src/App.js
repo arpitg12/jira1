@@ -1,6 +1,7 @@
 import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AuthProvider, getDefaultRouteForUser, useAuth } from './context/AuthContext';
+import { NotificationProvider } from './context/NotificationContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
@@ -94,9 +95,11 @@ const AppRoutes = () => {
 function App() {
   return (
     <AuthProvider>
-      <Router>
-        <AppRoutes />
-      </Router>
+      <NotificationProvider>
+        <Router>
+          <AppRoutes />
+        </Router>
+      </NotificationProvider>
     </AuthProvider>
   );
 }

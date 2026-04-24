@@ -18,6 +18,9 @@ const workflowPopulate = {
 const projectPopulate = [
   workflowPopulate,
   { path: 'visibleToUsers', select: 'username email role active' },
+  { path: 'managers', select: 'username email role active' },
+  { path: 'members', select: 'username email role active' },
+  { path: 'watchers', select: 'username email role active' },
 ];
 
 const toArray = (value) => {
@@ -47,9 +50,14 @@ const validateVisibleUsers = async (userIds = []) => {
   return uniqueIds;
 };
 
+const deriveProjectAudienceDefaults = (visibleToUsers = []) => ({
+  members: visibleToUsers,
+  watchers: visibleToUsers,
+});
+
 export const createProject = async (req, res) => {
   try {
-    const { name, description, workflow, visibleToUsers } = req.body;
+    const { name, description, workflow, visibleToUsers, managers, members, watchers } = req.body;
 
     if (!name || !workflow) {
       return res.status(400).json({ error: 'Project name and workflow are required' });
@@ -61,12 +69,24 @@ export const createProject = async (req, res) => {
     }
 
     const validatedVisibleUsers = await validateVisibleUsers(visibleToUsers);
+    const validatedManagers = managers !== undefined ? await validateVisibleUsers(managers) : [];
+    const validatedMembers =
+      members !== undefined
+        ? await validateVisibleUsers(members)
+        : deriveProjectAudienceDefaults(validatedVisibleUsers).members;
+    const validatedWatchers =
+      watchers !== undefined
+        ? await validateVisibleUsers(watchers)
+        : deriveProjectAudienceDefaults(validatedVisibleUsers).watchers;
 
     const project = new Project({
       name: name.trim(),
       description: description || '',
       workflow,
       visibleToUsers: validatedVisibleUsers,
+      managers: validatedManagers,
+      members: validatedMembers,
+      watchers: validatedWatchers,
     });
 
     await project.save();
@@ -115,7 +135,7 @@ export const getProjectById = async (req, res) => {
 
 export const updateProject = async (req, res) => {
   try {
-    const { name, description, workflow, active, visibleToUsers } = req.body;
+    const { name, description, workflow, active, visibleToUsers, managers, members, watchers } = req.body;
     const updates = {};
 
     if (name !== undefined) {
@@ -143,6 +163,22 @@ export const updateProject = async (req, res) => {
 
     if (visibleToUsers !== undefined) {
       updates.visibleToUsers = await validateVisibleUsers(visibleToUsers);
+    }
+
+    if (managers !== undefined) {
+      updates.managers = await validateVisibleUsers(managers);
+    }
+
+    if (members !== undefined) {
+      updates.members = await validateVisibleUsers(members);
+    } else if (visibleToUsers !== undefined) {
+      updates.members = deriveProjectAudienceDefaults(updates.visibleToUsers).members;
+    }
+
+    if (watchers !== undefined) {
+      updates.watchers = await validateVisibleUsers(watchers);
+    } else if (visibleToUsers !== undefined) {
+      updates.watchers = deriveProjectAudienceDefaults(updates.visibleToUsers).watchers;
     }
 
     const project = await Project.findByIdAndUpdate(

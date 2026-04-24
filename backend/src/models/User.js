@@ -1,5 +1,52 @@
 import mongoose from 'mongoose';
 
+const pushSubscriptionSchema = new mongoose.Schema(
+  {
+    endpoint: {
+      type: String,
+      required: true,
+      trim: true,
+    },
+    expirationTime: {
+      type: Number,
+      default: null,
+    },
+    keys: {
+      p256dh: {
+        type: String,
+        required: true,
+      },
+      auth: {
+        type: String,
+        required: true,
+      },
+    },
+  },
+  { _id: false }
+);
+
+const notificationSettingsSchema = new mongoose.Schema(
+  {
+    TASK_CREATED: {
+      type: Boolean,
+      default: true,
+    },
+    TASK_ASSIGNED: {
+      type: Boolean,
+      default: true,
+    },
+    TASK_COMMENTED: {
+      type: Boolean,
+      default: true,
+    },
+    TASK_UPDATED: {
+      type: Boolean,
+      default: true,
+    },
+  },
+  { _id: false }
+);
+
 const userSchema = new mongoose.Schema(
   {
     username: {
@@ -28,6 +75,14 @@ const userSchema = new mongoose.Schema(
     active: {
       type: Boolean,
       default: true,
+    },
+    pushSubscriptions: {
+      type: [pushSubscriptionSchema],
+      default: [],
+    },
+    notificationSettings: {
+      type: notificationSettingsSchema,
+      default: () => ({}),
     },
   },
   { timestamps: true }

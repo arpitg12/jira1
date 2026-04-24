@@ -23,6 +23,24 @@ const projectSchema = new mongoose.Schema(
         ref: 'User',
       },
     ],
+    managers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    members: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
+    watchers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     active: {
       type: Boolean,
       default: true,

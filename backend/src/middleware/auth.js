@@ -27,6 +27,7 @@ export const serializeUser = (user) => ({
   email: user.email,
   role: user.role,
   active: user.active,
+  notificationSettings: user.notificationSettings,
 });
 
 const getTokenFromRequest = (req) => {

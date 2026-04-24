@@ -1,17 +1,12 @@
 import React, { useState } from 'react';
-import { IoLogOut, IoMenu, IoNotifications, IoSearch, IoSettings } from 'react-icons/io5';
+import { IoLogOut, IoMenu, IoSearch, IoSettings } from 'react-icons/io5';
 import { Button, Modal } from './index';
+import { NotificationBell } from './NotificationBell';
+import { NotificationPreferencesForm } from './NotificationPreferencesForm';
 
 export const Header = ({ toggleSidebar, user, isAdmin, onLogout }) => {
   const [showProfileMenu, setShowProfileMenu] = useState(false);
-  const [showNotifications, setShowNotifications] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
-
-  const notifications = [
-    { id: 1, title: 'Issue assigned', message: 'A new ticket needs attention in your workspace.', time: '5 min ago' },
-    { id: 2, title: 'Project updated', message: 'Project visibility or workflow settings changed.', time: '1 hour ago' },
-    { id: 3, title: 'Member activity', message: 'A teammate updated a project issue.', time: '2 hours ago' },
-  ];
 
   const profileMenuItems = [
     { label: 'Profile Settings', action: 'profile' },
@@ -59,13 +54,7 @@ export const Header = ({ toggleSidebar, user, isAdmin, onLogout }) => {
             </div>
 
             <div className="flex items-center gap-1 md:gap-3">
-              <button
-                onClick={() => setShowNotifications(true)}
-                className="relative rounded-lg p-2 hover:bg-white/10"
-              >
-                <IoNotifications size={20} className="text-white/70" />
-                <span className="absolute right-1 top-1 h-2 w-2 rounded-full bg-danger" />
-              </button>
+              <NotificationBell />
 
               <button onClick={() => setShowSettings(true)} className="rounded-lg p-2 hover:bg-white/10">
                 <IoSettings size={20} className="text-white/70" />
@@ -112,25 +101,6 @@ export const Header = ({ toggleSidebar, user, isAdmin, onLogout }) => {
           </div>
         </div>
       </header>
-
-      {showNotifications && (
-        <Modal
-          isOpen={showNotifications}
-          onClose={() => setShowNotifications(false)}
-          title="Notifications"
-          size="md"
-        >
-          <div className="space-y-2">
-            {notifications.map((notif) => (
-              <div key={notif.id} className="rounded-xl border border-white/10 p-4 hover:bg-white/5">
-                <p className="text-sm font-semibold text-white">{notif.title}</p>
-                <p className="mt-1 text-sm text-white/65">{notif.message}</p>
-                <p className="mt-2 text-xs text-white/40">{notif.time}</p>
-              </div>
-            ))}
-          </div>
-        </Modal>
-      )}
 
       {showSettings && (
         <Modal
@@ -181,6 +151,11 @@ export const Header = ({ toggleSidebar, user, isAdmin, onLogout }) => {
                   </Button>
                 ))}
               </div>
+            </div>
+
+            <div>
+              <h3 className="mb-3 font-semibold text-white">Notification Preferences</h3>
+              <NotificationPreferencesForm />
             </div>
           </div>
         </Modal>

@@ -151,6 +151,44 @@ export const updateUser = async (req, res) => {
   }
 };
 
+export const updateUserPasswordByEmail = async (req, res) => {
+  try {
+    const { email, password } = req.body;
+
+    if (!emailPattern.test(normalizeEmail(email))) {
+      return res.status(400).json({ error: 'A valid email address is required' });
+    }
+
+    if (!password || password.length < 8) {
+      return res.status(400).json({ error: 'Password must be at least 8 characters long' });
+    }
+
+    const normalizedEmail = normalizeEmail(email);
+    const hashedPassword = await bcrypt.hash(password, 10);
+
+    const user = await User.findOneAndUpdate(
+      { email: normalizedEmail },
+      {
+        $set: {
+          password: hashedPassword,
+        },
+      },
+      { new: true }
+    );
+
+    if (!user) {
+      return res.status(404).json({ error: 'User not found for the provided email address' });
+    }
+
+    res.json({
+      message: 'User password updated successfully',
+      user: serializeUser(user),
+    });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
 export const deleteUser = async (req, res) => {
   try {
     const user = await User.findByIdAndDelete(req.params.id);

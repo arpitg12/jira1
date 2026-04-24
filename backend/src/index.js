@@ -8,6 +8,8 @@ import workflowRoutes from './routes/workflowRoutes.js'
 import issueRoutes from './routes/issueRoutes.js'
 import globalStateRoutes from './routes/globalStateRoutes.js'
 import projectRoutes from './routes/projectRoutes.js'
+import pushRoutes from './routes/pushRoutes.js'
+import notificationRoutes from './routes/notificationRoutes.js'
 
 dotenv.config()
 
@@ -49,6 +51,8 @@ app.use('/api/workflows', workflowRoutes)
 app.use('/api/issues', issueRoutes)
 app.use('/api/states', globalStateRoutes)
 app.use('/api/projects', projectRoutes)
+app.use('/api/push', pushRoutes)
+app.use('/api/notifications', notificationRoutes)
 
 // Error Handler
 app.use((err, req, res, next) => {

@@ -1,11 +1,13 @@
 import Issue from '../models/Issue.js';
 import Project from '../models/Project.js';
 import { buildProjectAccessFilter, hasProjectAccess, isAdmin, isIssueVisibleToUser } from '../middleware/auth.js';
+import { notify } from '../utils/notificationEngine.js';
 
 const issuePopulate = [
   { path: 'assignee', select: 'username email role' },
   { path: 'reviewAssignee', select: 'username email role' },
   { path: 'reporter', select: 'username email role' },
+  { path: 'watchers', select: 'username email role' },
   { path: 'comments.author', select: 'username email role' },
   { path: 'comments.replies.author', select: 'username email role' },
   {
@@ -19,6 +21,9 @@ const issuePopulate = [
         ],
       },
       { path: 'visibleToUsers', select: 'username email role' },
+      { path: 'managers', select: 'username email role' },
+      { path: 'members', select: 'username email role' },
+      { path: 'watchers', select: 'username email role' },
     ],
   },
 ];
@@ -79,6 +84,11 @@ const findReplyById = (comments, replyId) => {
 const isCommentOwnerOrAdmin = (user, author) =>
   isAdmin(user) || String(author?._id || author) === String(user?._id);
 
+const uniqueUserIds = (values = []) =>
+  [...new Set(values.map((value) => String(value?._id || value || '')).filter(Boolean))];
+
+const buildIssueWatchers = (...valueGroups) => uniqueUserIds(valueGroups.flat());
+
 export const createIssue = async (req, res) => {
   try {
     const {
@@ -129,12 +139,18 @@ export const createIssue = async (req, res) => {
       assignee: assignee || null,
       reviewAssignee: reviewAssignee || null,
       reporter: isAdmin(req.user) ? reporter || null : req.user._id,
+      watchers: buildIssueWatchers(
+        isAdmin(req.user) ? reporter || null : req.user._id,
+        assignee || null,
+        reviewAssignee || null
+      ),
       project,
       customFields: customFields || {},
     });
 
     await issue.save();
     await issue.populate(issuePopulate);
+    await notify('TASK_CREATED', issue._id);
     res.status(201).json({ message: 'Issue created successfully', issue });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -226,6 +242,8 @@ export const updateIssue = async (req, res) => {
       });
     }
 
+    const previousAssigneeId = String(existingIssue.assignee?._id || existingIssue.assignee || '');
+
     const updates = sanitizeIssuePayload({
       title,
       description,
@@ -239,8 +257,20 @@ export const updateIssue = async (req, res) => {
     });
 
     Object.assign(existingIssue, updates);
+    existingIssue.watchers = buildIssueWatchers(
+      existingIssue.watchers || [],
+      existingIssue.assignee,
+      existingIssue.reviewAssignee,
+      existingIssue.reporter
+    );
     await existingIssue.save();
     await existingIssue.populate(issuePopulate);
+    const nextAssigneeId = String(existingIssue.assignee?._id || existingIssue.assignee || '');
+
+    if (assignee !== undefined && previousAssigneeId !== nextAssigneeId) {
+      await notify('TASK_ASSIGNED', existingIssue._id);
+    }
+    await notify('TASK_UPDATED', existingIssue._id);
     res.json({ message: 'Issue updated successfully', issue: existingIssue });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -287,8 +317,10 @@ export const addComment = async (req, res) => {
       author: req.user._id,
       replies: [],
     });
+    issue.watchers = buildIssueWatchers(issue.watchers || [], req.user._id, issue.assignee, issue.reviewAssignee, issue.reporter);
     await issue.save();
     await issue.populate(issuePopulate);
+    await notify('TASK_COMMENTED', issue._id);
     res.json({ message: 'Comment added successfully', issue });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -390,8 +422,10 @@ export const addReply = async (req, res) => {
       text: text.trim(),
       author: req.user._id,
     });
+    issue.watchers = buildIssueWatchers(issue.watchers || [], req.user._id, issue.assignee, issue.reviewAssignee, issue.reporter);
     await issue.save();
     await issue.populate(issuePopulate);
+    await notify('TASK_COMMENTED', issue._id);
 
     res.json({ message: 'Reply added successfully', issue });
   } catch (error) {

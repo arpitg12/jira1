@@ -75,6 +75,11 @@ export const updateUser = (id, data) =>
     method: 'PUT',
     body: JSON.stringify(data),
   });
+export const updateUserPasswordByEmail = (data) =>
+  apiCall('/users/password', {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
 export const deleteUser = (id) =>
   apiCall(`/users/${id}`, { method: 'DELETE' });
 
@@ -186,4 +191,37 @@ export const updateReply = (issueId, commentId, replyId, data) =>
 export const deleteReply = (issueId, commentId, replyId) =>
   apiCall(`/issues/${issueId}/comments/${commentId}/replies/${replyId}`, {
     method: 'DELETE',
+  });
+
+export const getPushPublicKey = () => apiCall('/push/vapid-public-key');
+
+export const savePushSubscription = (data) =>
+  apiCall('/push/subscribe', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const getNotifications = (limit = 50) =>
+  apiCall(`/notifications?limit=${limit}`);
+
+export const getUnreadNotificationCount = () =>
+  apiCall('/notifications/unread-count');
+
+export const markNotificationAsRead = (id) =>
+  apiCall(`/notifications/mark-read/${id}`, {
+    method: 'POST',
+  });
+
+export const markAllNotificationsAsRead = () =>
+  apiCall('/notifications/mark-all-read', {
+    method: 'POST',
+  });
+
+export const getNotificationPreferences = () =>
+  apiCall('/notifications/preferences');
+
+export const updateNotificationPreferences = (notificationSettings) =>
+  apiCall('/notifications/preferences', {
+    method: 'PUT',
+    body: JSON.stringify({ notificationSettings }),
   });

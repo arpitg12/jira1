@@ -77,6 +77,12 @@ const issueSchema = new mongoose.Schema(
       ref: 'User',
       default: null,
     },
+    watchers: [
+      {
+        type: mongoose.Schema.Types.ObjectId,
+        ref: 'User',
+      },
+    ],
     project: {
       type: mongoose.Schema.Types.ObjectId,
       ref: 'Project',
