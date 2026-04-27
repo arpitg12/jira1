@@ -1,8 +1,8 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
+import { IoAdd, IoPencil, IoTrash } from 'react-icons/io5';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Breadcrumb, Button, Modal, Badge } from '../../components/common';
-import { IoAdd, IoPencil, IoTrash } from 'react-icons/io5';
 import {
   createIssue,
   deleteIssue,
@@ -20,12 +20,49 @@ const emptyIssueForm = {
   description: '',
   issueType: 'Task',
   priority: 'Medium',
-  assignee: '',
-  reviewAssignee: '',
+  assignees: [],
+  reviewAssignees: [],
   reporter: '',
   project: '',
   status: 'To Do',
 };
+
+const uniqueUsers = (userList) => {
+  const map = new Map();
+  [...(Array.isArray(userList) ? userList : [])]
+    .filter(Boolean)
+    .forEach((user) => map.set(user._id, user));
+  return [...map.values()];
+};
+
+const userNames = (userList, emptyLabel = 'Unassigned') => {
+  const people = uniqueUsers(userList).map((user) => user.username).filter(Boolean);
+  return people.length > 0 ? people.join(', ') : emptyLabel;
+};
+
+const toggleSelection = (selectedIds, userId) =>
+  selectedIds.includes(userId)
+    ? selectedIds.filter((id) => id !== userId)
+    : [...selectedIds, userId];
+
+const CheckboxList = ({ users, selectedIds, onChange, emptyLabel }) => (
+  <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-300 px-3 py-2">
+    {users.length > 0 ? (
+      users.map((user) => (
+        <label key={user._id} className="flex items-center gap-2 text-sm text-dark">
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(user._id)}
+            onChange={() => onChange(toggleSelection(selectedIds, user._id))}
+          />
+          <span>{user.username}</span>
+        </label>
+      ))
+    ) : (
+      <div className="text-xs text-gray-500">{emptyLabel}</div>
+    )}
+  </div>
+);
 
 const Issues = () => {
   const navigate = useNavigate();
@@ -95,8 +132,8 @@ const Issues = () => {
         description: issueForm.description,
         issueType: issueForm.issueType,
         priority: issueForm.priority,
-        assignee: issueForm.assignee || undefined,
-        reviewAssignee: issueForm.reviewAssignee || undefined,
+        assignees: issueForm.assignees,
+        reviewAssignees: issueForm.reviewAssignees,
         reporter: issueForm.reporter || undefined,
         project: issueForm.project,
       });
@@ -120,8 +157,8 @@ const Issues = () => {
         issueType: issueForm.issueType,
         priority: issueForm.priority,
         status: issueForm.status,
-        assignee: issueForm.assignee || undefined,
-        reviewAssignee: issueForm.reviewAssignee || undefined,
+        assignees: issueForm.assignees,
+        reviewAssignees: issueForm.reviewAssignees,
         reporter: issueForm.reporter || undefined,
       });
       resetForm();
@@ -141,8 +178,8 @@ const Issues = () => {
       issueType: issue.issueType,
       priority: issue.priority,
       status: issue.status,
-      assignee: issue.assignee?._id || '',
-      reviewAssignee: issue.reviewAssignee?._id || '',
+      assignees: uniqueUsers(issue.assignees).map((entry) => entry._id),
+      reviewAssignees: uniqueUsers(issue.reviewAssignees).map((entry) => entry._id),
       reporter: issue.reporter?._id || '',
       project: issue.project?._id || '',
     });
@@ -177,12 +214,15 @@ const Issues = () => {
   ];
 
   const filteredIssues = issues.filter((issue) => {
+    const assigneeIds = uniqueUsers(issue.assignees).map((entry) => entry._id);
+    const reviewerIds = uniqueUsers(issue.reviewAssignees).map((entry) => entry._id);
+
     if (activeFilter === 'All') return true;
     if (activeFilter === 'Bug') return issue.issueType === 'Bug';
     if (activeFilter === 'Critical') return issue.priority === 'Critical';
     if (activeFilter === 'In Progress') return issue.status === 'In Progress';
     if (activeFilter === 'My Issues') {
-      return [issue.assignee?._id, issue.reviewAssignee?._id, issue.reporter?._id].includes(user?._id);
+      return [...assigneeIds, ...reviewerIds, issue.reporter?._id].includes(user?._id);
     }
     return true;
   });
@@ -196,6 +236,144 @@ const Issues = () => {
     setIsEditModalOpen(false);
     resetForm();
   };
+
+  const renderForm = (isEdit = false) => (
+    <form onSubmit={isEdit ? handleEditIssue : handleCreateIssue} className="space-y-4">
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-dark">Issue Title</label>
+        <input
+          type="text"
+          placeholder="Enter issue title"
+          value={issueForm.title}
+          onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
+          className="w-full"
+          required
+        />
+      </div>
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
+        <textarea
+          placeholder="Enter description (optional)"
+          value={issueForm.description}
+          onChange={(e) => setIssueForm({ ...issueForm, description: e.target.value })}
+          className="w-full"
+          rows={3}
+        />
+      </div>
+      <div className="grid grid-cols-2 gap-4">
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-dark">Issue Type</label>
+          <select
+            value={issueForm.issueType}
+            onChange={(e) => setIssueForm({ ...issueForm, issueType: e.target.value })}
+            className="w-full"
+          >
+            <option value="Task">Task</option>
+            <option value="Bug">Bug</option>
+            <option value="Feature">Feature</option>
+            <option value="Improvement">Improvement</option>
+          </select>
+        </div>
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-dark">Priority</label>
+          <select
+            value={issueForm.priority}
+            onChange={(e) => setIssueForm({ ...issueForm, priority: e.target.value })}
+            className="w-full"
+          >
+            <option value="Low">Low</option>
+            <option value="Medium">Medium</option>
+            <option value="High">High</option>
+            <option value="Critical">Critical</option>
+          </select>
+        </div>
+      </div>
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-dark">Project</label>
+        <select
+          value={issueForm.project}
+          onChange={(e) =>
+            setIssueForm({
+              ...issueForm,
+              project: e.target.value,
+              status: getWorkflowStatusOptionsForProject(e.target.value)[0] || 'To Do',
+            })
+          }
+          className="w-full"
+          required
+          disabled={isEdit}
+        >
+          <option value="">-- Select a project --</option>
+          {projects.map((project) => (
+            <option key={project._id} value={project._id}>
+              {project.name}
+            </option>
+          ))}
+        </select>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-dark">Assignees</label>
+          <CheckboxList
+            users={users}
+            selectedIds={issueForm.assignees}
+            onChange={(value) => setIssueForm({ ...issueForm, assignees: value })}
+            emptyLabel="No users found"
+          />
+        </div>
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-dark">Reviewers</label>
+          <CheckboxList
+            users={users}
+            selectedIds={issueForm.reviewAssignees}
+            onChange={(value) => setIssueForm({ ...issueForm, reviewAssignees: value })}
+            emptyLabel="No users found"
+          />
+        </div>
+      </div>
+      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+        <div>
+          <label className="mb-2 block text-sm font-semibold text-dark">Reporter</label>
+          <select
+            value={issueForm.reporter}
+            onChange={(e) => setIssueForm({ ...issueForm, reporter: e.target.value })}
+            className="w-full"
+          >
+            <option value="">-- Select reporter --</option>
+            {users.map((entry) => (
+              <option key={entry._id} value={entry._id}>
+                {entry.username}
+              </option>
+            ))}
+          </select>
+        </div>
+        {isEdit && (
+          <div>
+            <label className="mb-2 block text-sm font-semibold text-dark">Status</label>
+            <select
+              value={issueForm.status}
+              onChange={(e) => setIssueForm({ ...issueForm, status: e.target.value })}
+              className="w-full"
+            >
+              {getWorkflowStatusOptionsForProject(issueForm.project).map((status) => (
+                <option key={status} value={status}>
+                  {status}
+                </option>
+              ))}
+            </select>
+          </div>
+        )}
+      </div>
+      <div className="flex gap-2 pt-2">
+        <Button variant="primary" type="submit">
+          {isEdit ? 'Update Issue' : 'Create Issue'}
+        </Button>
+        <Button type="button" variant="secondary" onClick={isEdit ? closeEditModal : closeCreateModal}>
+          Cancel
+        </Button>
+      </div>
+    </form>
+  );
 
   return (
     <AdminLayout>
@@ -262,7 +440,7 @@ const Issues = () => {
                     <th className="px-4 py-3 text-left font-semibold">Type</th>
                     <th className="px-4 py-3 text-left font-semibold">Priority</th>
                     <th className="px-4 py-3 text-left font-semibold">Status</th>
-                    <th className="px-4 py-3 text-left font-semibold">Assignee</th>
+                    <th className="px-4 py-3 text-left font-semibold">Assignees</th>
                     <th className="px-4 py-3 text-left font-semibold">Actions</th>
                   </tr>
                 </thead>
@@ -291,15 +469,8 @@ const Issues = () => {
                         <td className="px-4 py-3">
                           <span className="text-xs text-white/70">{issue.status}</span>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="flex h-6 w-6 items-center justify-center rounded-full bg-[#5b5dff] text-xs font-bold text-white">
-                              {(issue.assignee?.username?.[0] || 'A').toUpperCase()}
-                            </span>
-                            <span className="text-sm text-white/80">
-                              {issue.assignee?.username || 'Unassigned'}
-                            </span>
-                          </div>
+                        <td className="px-4 py-3 text-sm text-white/80">
+                          {userNames(issue.assignees)}
                         </td>
                         <td className="px-4 py-3" onClick={(event) => event.stopPropagation()}>
                           <div className="flex items-center gap-2">
@@ -343,251 +514,11 @@ const Issues = () => {
         )}
 
         <Modal isOpen={isCreateModalOpen} onClose={closeCreateModal} title="Create New Issue">
-          <form onSubmit={handleCreateIssue} className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Issue Title</label>
-              <input
-                type="text"
-                placeholder="Enter issue title"
-                value={issueForm.title}
-                onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
-                className="w-full"
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
-              <textarea
-                placeholder="Enter description (optional)"
-                value={issueForm.description}
-                onChange={(e) => setIssueForm({ ...issueForm, description: e.target.value })}
-                className="w-full"
-                rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Issue Type</label>
-                <select
-                  value={issueForm.issueType}
-                  onChange={(e) => setIssueForm({ ...issueForm, issueType: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="Task">Task</option>
-                  <option value="Bug">Bug</option>
-                  <option value="Feature">Feature</option>
-                  <option value="Improvement">Improvement</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Priority</label>
-                <select
-                  value={issueForm.priority}
-                  onChange={(e) => setIssueForm({ ...issueForm, priority: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Project</label>
-              <select
-                value={issueForm.project}
-                onChange={(e) => setIssueForm({ ...issueForm, project: e.target.value })}
-                className="w-full"
-                required
-              >
-                <option value="">-- Select a project --</option>
-                {projects.map((project) => (
-                  <option key={project._id} value={project._id}>
-                    {project.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Assignee</label>
-                <select
-                  value={issueForm.assignee}
-                  onChange={(e) => setIssueForm({ ...issueForm, assignee: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="">-- Select assignee --</option>
-                  {users.map((member) => (
-                    <option key={member._id} value={member._id}>
-                      {member.username}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Reviewer</label>
-                <select
-                  value={issueForm.reviewAssignee}
-                  onChange={(e) => setIssueForm({ ...issueForm, reviewAssignee: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="">-- Select reviewer --</option>
-                  {users.map((member) => (
-                    <option key={member._id} value={member._id}>
-                      {member.username}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Reporter</label>
-                <select
-                  value={issueForm.reporter}
-                  onChange={(e) => setIssueForm({ ...issueForm, reporter: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="">-- Select reporter --</option>
-                  {users.map((member) => (
-                    <option key={member._id} value={member._id}>
-                      {member.username}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button variant="primary" size="sm" type="submit">
-                Create
-              </Button>
-              <Button type="button" variant="secondary" size="sm" onClick={closeCreateModal}>
-                Cancel
-              </Button>
-            </div>
-          </form>
+          {renderForm(false)}
         </Modal>
 
         <Modal isOpen={isEditModalOpen} onClose={closeEditModal} title="Edit Issue">
-          <form onSubmit={handleEditIssue} className="space-y-4">
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Issue Title</label>
-              <input
-                type="text"
-                placeholder="Enter issue title"
-                value={issueForm.title}
-                onChange={(e) => setIssueForm({ ...issueForm, title: e.target.value })}
-                className="w-full"
-                required
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
-              <textarea
-                placeholder="Enter description (optional)"
-                value={issueForm.description}
-                onChange={(e) => setIssueForm({ ...issueForm, description: e.target.value })}
-                className="w-full"
-                rows={3}
-              />
-            </div>
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Issue Type</label>
-                <select
-                  value={issueForm.issueType}
-                  onChange={(e) => setIssueForm({ ...issueForm, issueType: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="Task">Task</option>
-                  <option value="Bug">Bug</option>
-                  <option value="Feature">Feature</option>
-                  <option value="Improvement">Improvement</option>
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Priority</label>
-                <select
-                  value={issueForm.priority}
-                  onChange={(e) => setIssueForm({ ...issueForm, priority: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="Low">Low</option>
-                  <option value="Medium">Medium</option>
-                  <option value="High">High</option>
-                  <option value="Critical">Critical</option>
-                </select>
-              </div>
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Status</label>
-              <select
-                value={issueForm.status}
-                onChange={(e) => setIssueForm({ ...issueForm, status: e.target.value })}
-                className="w-full"
-              >
-                {getWorkflowStatusOptionsForProject(issueForm.project).map((status) => (
-                  <option key={status} value={status}>
-                    {status}
-                  </option>
-                ))}
-              </select>
-            </div>
-            <div className="grid grid-cols-1 gap-4 md:grid-cols-3">
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Assignee</label>
-                <select
-                  value={issueForm.assignee}
-                  onChange={(e) => setIssueForm({ ...issueForm, assignee: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="">-- Select assignee --</option>
-                  {users.map((member) => (
-                    <option key={member._id} value={member._id}>
-                      {member.username}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Reviewer</label>
-                <select
-                  value={issueForm.reviewAssignee}
-                  onChange={(e) => setIssueForm({ ...issueForm, reviewAssignee: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="">-- Select reviewer --</option>
-                  {users.map((member) => (
-                    <option key={member._id} value={member._id}>
-                      {member.username}
-                    </option>
-                  ))}
-                </select>
-              </div>
-              <div>
-                <label className="mb-2 block text-sm font-semibold text-dark">Reporter</label>
-                <select
-                  value={issueForm.reporter}
-                  onChange={(e) => setIssueForm({ ...issueForm, reporter: e.target.value })}
-                  className="w-full"
-                >
-                  <option value="">-- Select reporter --</option>
-                  {users.map((member) => (
-                    <option key={member._id} value={member._id}>
-                      {member.username}
-                    </option>
-                  ))}
-                </select>
-              </div>
-            </div>
-            <div className="flex gap-2 pt-4">
-              <Button variant="primary" size="sm" type="submit">
-                Update
-              </Button>
-              <Button type="button" variant="secondary" size="sm" onClick={closeEditModal}>
-                Cancel
-              </Button>
-            </div>
-          </form>
+          {renderForm(true)}
         </Modal>
       </div>
     </AdminLayout>

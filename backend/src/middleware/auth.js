@@ -1,9 +1,8 @@
 import jwt from 'jsonwebtoken';
 import User from '../models/User.js';
+import { env } from '../config/env.js';
 
 const ADMIN_ROLE = 'Admin';
-
-const getJwtSecret = () => process.env.JWT_SECRET || 'jira-app-dev-secret';
 
 export const isAdmin = (user) => user?.role === ADMIN_ROLE;
 
@@ -14,9 +13,9 @@ export const signAuthToken = (user) =>
       role: user.role,
       email: user.email,
     },
-    getJwtSecret(),
+    env.jwtSecret,
     {
-      expiresIn: process.env.JWT_EXPIRES_IN || '7d',
+      expiresIn: env.jwtExpiresIn,
     }
   );
 
@@ -48,7 +47,7 @@ export const authenticate = async (req, res, next) => {
       return res.status(401).json({ error: 'Authentication token is required' });
     }
 
-    const decoded = jwt.verify(token, getJwtSecret());
+    const decoded = jwt.verify(token, env.jwtSecret);
     const user = await User.findById(decoded.sub).select('+password');
 
     if (!user || !user.active) {
@@ -70,7 +69,7 @@ export const optionalAuthenticate = async (req, res, next) => {
       return next();
     }
 
-    const decoded = jwt.verify(token, getJwtSecret());
+    const decoded = jwt.verify(token, env.jwtSecret);
     const user = await User.findById(decoded.sub).select('+password');
 
     if (user && user.active) {

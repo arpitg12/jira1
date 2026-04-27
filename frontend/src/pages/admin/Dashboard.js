@@ -5,6 +5,11 @@ import { IoArrowDown, IoArrowUp } from 'react-icons/io5';
 import { getIssues, getProjects, getUsers } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
+const includesUser = (userList, userId) =>
+  [...(Array.isArray(userList) ? userList : [])].some(
+    (entry) => String(entry?._id || entry || '') === String(userId || '')
+  );
+
 const Dashboard = () => {
   const { user, isAdmin } = useAuth();
   const [loading, setLoading] = useState(true);
@@ -90,7 +95,7 @@ const Dashboard = () => {
         },
         {
           title: 'My Reviews',
-          value: issues.filter((issue) => issue.reviewAssignee?._id === user?._id).length,
+          value: issues.filter((issue) => includesUser(issue.reviewAssignees, user?._id)).length,
           change: 'Role-aware view',
           isPositive: true,
         },

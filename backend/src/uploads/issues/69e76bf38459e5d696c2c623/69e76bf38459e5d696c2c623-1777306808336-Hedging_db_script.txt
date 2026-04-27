@@ -1,0 +1,98 @@
+ALTER TABLE NewShanghaiNetPostionTable
+ALTER COLUMN Id INT NOT NULL;
+ 
+ALTER TABLE NewShanghaiNetPostionTable
+ADD CONSTRAINT PK_NewShanghaiNetPostionTable PRIMARY KEY (Id);
+
+ALTER TABLE CTCL
+ADD Hedging BIT NOT NULL DEFAULT 0;
+ 
+ 
+ALTER PROCEDURE [dbo].[Spaddctcl] 
+    @CTCLACCOUNTID   VARCHAR(45),  
+    @CTCLACCOUNTNAME VARCHAR(45),  
+    @SENDERCOMPID    VARCHAR(45),  
+    @TARGETCOMPID    VARCHAR(45),  
+    @CONFIGITEMSID   INT,  
+    @CREATETIME      DATETIME,  
+    @MODIFIETIME     DATETIME,  
+    @LASTOPERATOR    VARCHAR(100),  
+    @OMSIdentifier   VARCHAR(MAX),  
+    @BypassMargin    BIT,  
+    @IsDropCopy      BIT,
+    @Hedging         BIT,            
+    @ClearingId      VARCHAR(100),  
+    @NID             INT OUTPUT  
+AS  
+BEGIN  
+    INSERT INTO CTCL  
+    (
+        CTCLAccountId,  
+        CTCLAccountName,  
+        SenderCompID,  
+        TargetCompID,  
+        ConfigItemsId,  
+        CreateTime,  
+        ModifieTime,  
+        LastOperator,  
+        OMSIdentifier,  
+        BypassMargin,  
+        IsDropCopy,
+        Hedging,                    
+        ClearingId
+    )  
+    VALUES      
+    (
+        @CTCLACCOUNTID,  
+        @CTCLACCOUNTNAME,  
+        @SENDERCOMPID,  
+        @TARGETCOMPID,  
+        @CONFIGITEMSID,  
+        @CREATETIME,  
+        @MODIFIETIME,  
+        @LASTOPERATOR,  
+        @OMSIdentifier,  
+        @BypassMargin,  
+        @IsDropCopy,
+        @Hedging,                    
+        @ClearingId
+    );  
+ 
+    SET @NID = SCOPE_IDENTITY()  
+END
+ 
+ 
+ALTER PROCEDURE [dbo].[spUpdateCTCL]
+    @CTCLId         INT,
+    @CTCLAccountId  VARCHAR(45),
+    @CTCLAccountName VARCHAR(45),
+    @SenderCompID   VARCHAR(45),
+    @TargetCompID   VARCHAR(45),
+    @configItemsID  INT,
+    @CreateTime     DATETIME,
+    @ModifieTime    DATETIME,
+    @LastOperator   VARCHAR(100),
+    @OMSIdentifier  VARCHAR(MAX),
+    @BypassMargin   BIT,
+    @IsDropCopy     BIT,
+    @Hedging        BIT,       
+    @ClearingId     VARCHAR(100)
+AS
+BEGIN
+    UPDATE CTCL
+    SET
+        CTCLAccountId   = @CTCLAccountId,
+        CTCLAccountName = @CTCLAccountName,
+        SenderCompID    = @SenderCompID,
+        TargetCompID    = @TargetCompID,
+        configItemsID   = @configItemsID,
+        CreateTime      = @CreateTime,
+        ModifieTime     = @ModifieTime,
+        LastOperator    = @LastOperator,
+        OMSIdentifier   = @OMSIdentifier,
+        BypassMargin    = @BypassMargin,
+        IsDropCopy      = @IsDropCopy,
+        Hedging         = @Hedging,       
+        ClearingId      = @ClearingId
+    WHERE CTCLId = @CTCLId
+END

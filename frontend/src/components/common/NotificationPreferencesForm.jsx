@@ -6,6 +6,7 @@ const SETTING_LABELS = {
   TASK_CREATED: 'Task created',
   TASK_ASSIGNED: 'Task assigned',
   TASK_COMMENTED: 'Task commented',
+  TASK_MENTIONED: 'Mentioned in comment',
   TASK_UPDATED: 'Task updated',
 };
 

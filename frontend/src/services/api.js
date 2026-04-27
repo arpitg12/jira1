@@ -1,4 +1,6 @@
-const API_URL = process.env.REACT_APP_API_URL || 'http://localhost:5000/api';
+import { env } from '../config/env';
+
+const API_URL = env.apiUrl;
 const TOKEN_KEY = 'jira_auth_token';
 const USER_KEY = 'jira_auth_user';
 
@@ -180,6 +182,17 @@ export const addReply = (issueId, commentId, data) =>
   apiCall(`/issues/${issueId}/comments/${commentId}/replies`, {
     method: 'POST',
     body: JSON.stringify(data),
+  });
+
+export const addAttachment = (issueId, data) =>
+  apiCall(`/issues/${issueId}/attachments`, {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const deleteAttachment = (issueId, attachmentId) =>
+  apiCall(`/issues/${issueId}/attachments/${attachmentId}`, {
+    method: 'DELETE',
   });
 
 export const updateReply = (issueId, commentId, replyId, data) =>

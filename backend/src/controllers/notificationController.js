@@ -5,6 +5,7 @@ const DEFAULT_SETTINGS = {
   TASK_CREATED: true,
   TASK_ASSIGNED: true,
   TASK_COMMENTED: true,
+  TASK_MENTIONED: true,
   TASK_UPDATED: true,
 };
 
@@ -113,6 +114,10 @@ export const updateNotificationPreferences = async (req, res) => {
         incomingSettings.TASK_COMMENTED === undefined
           ? DEFAULT_SETTINGS.TASK_COMMENTED
           : Boolean(incomingSettings.TASK_COMMENTED),
+      TASK_MENTIONED:
+        incomingSettings.TASK_MENTIONED === undefined
+          ? DEFAULT_SETTINGS.TASK_MENTIONED
+          : Boolean(incomingSettings.TASK_MENTIONED),
       TASK_UPDATED:
         incomingSettings.TASK_UPDATED === undefined
           ? DEFAULT_SETTINGS.TASK_UPDATED

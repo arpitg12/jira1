@@ -39,6 +39,10 @@ const notificationSettingsSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    TASK_MENTIONED: {
+      type: Boolean,
+      default: true,
+    },
     TASK_UPDATED: {
       type: Boolean,
       default: true,

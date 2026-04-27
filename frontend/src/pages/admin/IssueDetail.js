@@ -2,19 +2,25 @@ import React, { useCallback, useEffect, useMemo, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import {
   IoArrowBack,
+  IoAttach,
   IoCalendar,
   IoCheckmark,
+  IoDocumentText,
   IoFlag,
+  IoImage,
   IoPencil,
   IoReturnDownBack,
+  IoTimeOutline,
   IoTrash,
 } from 'react-icons/io5';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Button } from '../../components/common';
 import { useAuth } from '../../context/AuthContext';
 import {
+  addAttachment,
   addComment,
   addReply,
+  deleteAttachment,
   deleteComment,
   deleteIssue,
   deleteReply,
@@ -24,6 +30,7 @@ import {
   updateIssue,
   updateReply,
 } from '../../services/api';
+import { env } from '../../config/env';
 
 const DEFAULT_STATUS_OPTIONS = ['To Do', 'In Progress', 'In Review', 'Done'];
 const PRIORITY_OPTIONS = ['Low', 'Medium', 'High', 'Critical'];
@@ -38,6 +45,12 @@ const formatDateTime = (value) => {
     dateStyle: 'medium',
     timeStyle: 'short',
   }).format(date);
+};
+
+const formatFileSize = (size = 0) => {
+  if (size < 1024) return `${size} B`;
+  if (size < 1024 * 1024) return `${(size / 1024).toFixed(1)} KB`;
+  return `${(size / (1024 * 1024)).toFixed(1)} MB`;
 };
 
 const getStatusClasses = (status) => {
@@ -79,28 +92,63 @@ const getTypeClasses = (type) => {
   }
 };
 
+const normalizeUsers = (userList) => {
+  const map = new Map();
+  [...(Array.isArray(userList) ? userList : [])]
+    .filter(Boolean)
+    .forEach((user) => map.set(user._id, user));
+
+  return [...map.values()];
+};
+
 const createEditForm = (issueData) => ({
   title: issueData?.title || '',
   description: issueData?.description || '',
   status: issueData?.status || 'To Do',
   priority: issueData?.priority || 'Medium',
   issueType: issueData?.issueType || 'Task',
-  assignee: issueData?.assignee?._id || '',
-  reviewAssignee: issueData?.reviewAssignee?._id || '',
+  assignees: normalizeUsers(issueData?.assignees).map((user) => user._id),
+  reviewAssignees: normalizeUsers(issueData?.reviewAssignees).map((user) => user._id),
   reporter: issueData?.reporter?._id || '',
 });
+
+const buildPeopleLabel = (users = [], emptyLabel = 'Not set') =>
+  users.length > 0 ? users.map((user) => user?.username).filter(Boolean).join(', ') : emptyLabel;
+
+const getAttachmentUrl = (url) => (url?.startsWith('http') ? url : `${env.uploadsBaseUrl}${url}`);
+const isImageAttachment = (attachment) => attachment?.mimeType?.startsWith('image/');
+
+const readFileAsDataUrl = (file) =>
+  new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => resolve(String(reader.result || ''));
+    reader.onerror = () => reject(new Error(`Failed to read ${file.name}`));
+    reader.readAsDataURL(file);
+  });
+
+const toggleSelection = (selectedIds, userId) =>
+  selectedIds.includes(userId)
+    ? selectedIds.filter((id) => id !== userId)
+    : [...selectedIds, userId];
+
+const renderTextWithMentions = (text) => {
+  const parts = String(text || '').split(/(@[a-zA-Z0-9._-]+)/g);
+  return parts.map((part, index) =>
+    /^@[a-zA-Z0-9._-]+$/.test(part) ? (
+      <span key={`${part}-${index}`} className="font-semibold text-sky-300">
+        {part}
+      </span>
+    ) : (
+      <React.Fragment key={`${part}-${index}`}>{part}</React.Fragment>
+    )
+  );
+};
 
 const DetailRow = ({ label, children }) => (
   <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
     <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.16em] text-white/40">{label}</p>
     <div className="min-w-0 text-right">{children}</div>
   </div>
-);
-
-const PersonValue = ({ user, emptyLabel = 'Not set' }) => (
-  <span className="block truncate text-sm font-medium text-white/80">
-    {user?.username || emptyLabel}
-  </span>
 );
 
 const CommentActions = ({ onReply, onEdit, onDelete, canManage = true, showReply = true }) => (
@@ -123,6 +171,70 @@ const CommentActions = ({ onReply, onEdit, onDelete, canManage = true, showReply
   </div>
 );
 
+const MultiUserChecklist = ({ users, selectedIds, onChange, emptyLabel }) => (
+  <div className="max-h-36 min-w-[220px] space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-[#0d1015] p-3 text-left">
+    {users.length > 0 ? (
+      users.map((user) => (
+        <label key={user._id} className="flex items-center gap-2 text-sm text-white/80">
+          <input
+            type="checkbox"
+            checked={selectedIds.includes(user._id)}
+            onChange={() => onChange(toggleSelection(selectedIds, user._id))}
+            className="rounded border-white/20 bg-transparent text-primary"
+          />
+          <span>{user.username}</span>
+        </label>
+      ))
+    ) : (
+      <div className="text-xs text-white/45">{emptyLabel}</div>
+    )}
+  </div>
+);
+
+const HistoryBlock = ({ item, historyKey, expandedHistory, setExpandedHistory }) => {
+  const history = item?.editHistory || [];
+  const isExpanded = expandedHistory.includes(historyKey);
+
+  if (history.length === 0) {
+    return null;
+  }
+
+  return (
+    <div className="mt-2">
+      <button
+        type="button"
+        className="text-xs text-white/45 hover:text-white"
+        onClick={() =>
+          setExpandedHistory((current) =>
+            current.includes(historyKey)
+              ? current.filter((entry) => entry !== historyKey)
+              : [...current, historyKey]
+          )
+        }
+      >
+        {isExpanded ? 'Hide history' : `View history (${history.length})`}
+      </button>
+      {isExpanded && (
+        <div className="mt-2 space-y-2 rounded-xl border border-white/10 bg-white/[0.02] p-3">
+          {history
+            .slice()
+            .reverse()
+            .map((entry) => (
+              <div key={entry._id} className="rounded-lg border border-white/5 bg-black/10 p-2">
+                <div className="mb-1 flex items-center gap-2 text-[11px] text-white/45">
+                  <IoTimeOutline size={12} />
+                  <span>{formatDateTime(entry.editedAt)}</span>
+                  <span>{entry.editedBy?.username || 'Unknown user'}</span>
+                </div>
+                <p className="whitespace-pre-wrap text-xs leading-6 text-white/65">{entry.text}</p>
+              </div>
+            ))}
+        </div>
+      )}
+    </div>
+  );
+};
+
 const IssueDetail = () => {
   const { id } = useParams();
   const navigate = useNavigate();
@@ -134,18 +246,20 @@ const IssueDetail = () => {
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isUploading, setIsUploading] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [editForm, setEditForm] = useState(createEditForm(null));
   const [replyDraft, setReplyDraft] = useState({ commentId: '', text: '' });
   const [editingTarget, setEditingTarget] = useState({ type: '', commentId: '', replyId: '', text: '' });
   const [busyAction, setBusyAction] = useState('');
+  const [expandedHistory, setExpandedHistory] = useState([]);
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
       const [issueData, usersData] = await Promise.all([getIssueById(id), getUsers()]);
       setIssue(issueData);
-      setUsers(usersData);
+      setUsers(usersData || []);
       setEditForm(createEditForm(issueData));
       setError('');
     } catch (err) {
@@ -168,12 +282,12 @@ const IssueDetail = () => {
   }, [issue]);
 
   const sortedComments = useMemo(
-    () =>
-      [...(issue?.comments || [])].sort(
-        (a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)
-      ),
+    () => [...(issue?.comments || [])].sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0)),
     [issue]
   );
+
+  const currentAssignees = useMemo(() => normalizeUsers(issue?.assignees), [issue]);
+  const currentReviewers = useMemo(() => normalizeUsers(issue?.reviewAssignees), [issue]);
 
   const applyIssueUpdate = (updatedIssue) => {
     setIssue(updatedIssue);
@@ -194,8 +308,8 @@ const IssueDetail = () => {
         status: editForm.status,
         priority: editForm.priority,
         issueType: editForm.issueType,
-        assignee: editForm.assignee || null,
-        reviewAssignee: editForm.reviewAssignee || null,
+        assignees: editForm.assignees,
+        reviewAssignees: editForm.reviewAssignees,
         reporter: editForm.reporter || null,
       });
       applyIssueUpdate(response.issue || response);
@@ -224,9 +338,7 @@ const IssueDetail = () => {
 
     try {
       setBusyAction('comment-add');
-      const response = await addComment(id, {
-        text: newComment.trim(),
-      });
+      const response = await addComment(id, { text: newComment.trim() });
       applyIssueUpdate(response.issue || response);
       setNewComment('');
       setError('');
@@ -242,9 +354,7 @@ const IssueDetail = () => {
 
     try {
       setBusyAction(`reply-${commentId}`);
-      const response = await addReply(id, commentId, {
-        text: replyDraft.text.trim(),
-      });
+      const response = await addReply(id, commentId, { text: replyDraft.text.trim() });
       applyIssueUpdate(response.issue || response);
       setReplyDraft({ commentId: '', text: '' });
       setError('');
@@ -297,6 +407,51 @@ const IssueDetail = () => {
     }
   };
 
+  const handleAttachmentUpload = async (event) => {
+    const files = Array.from(event.target.files || []);
+    if (files.length === 0) return;
+
+    try {
+      setIsUploading(true);
+      let latestResponse = null;
+
+      for (const file of files) {
+        const content = await readFileAsDataUrl(file);
+        latestResponse = await addAttachment(id, {
+          name: file.name,
+          mimeType: file.type || 'application/octet-stream',
+          content,
+        });
+      }
+
+      if (latestResponse) {
+        applyIssueUpdate(latestResponse.issue || latestResponse);
+      }
+
+      setError('');
+      event.target.value = '';
+    } catch (err) {
+      setError(err.message || 'Failed to upload attachment');
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const handleDeleteAttachment = async (attachmentId) => {
+    if (!window.confirm('Are you sure you want to delete this attachment?')) return;
+
+    try {
+      setBusyAction(`attachment-delete-${attachmentId}`);
+      const response = await deleteAttachment(id, attachmentId);
+      applyIssueUpdate(response.issue || response);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Failed to delete attachment');
+    } finally {
+      setBusyAction('');
+    }
+  };
+
   if (loading) {
     return (
       <AdminLayout>
@@ -318,8 +473,7 @@ const IssueDetail = () => {
     );
   }
 
-  const canManageComment = (author) =>
-    isAdmin || String(author?._id || author) === String(currentUser?._id);
+  const canManageComment = (author) => isAdmin || String(author?._id || author) === String(currentUser?._id);
 
   return (
     <AdminLayout>
@@ -391,8 +545,8 @@ const IssueDetail = () => {
           </div>
         )}
 
-        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.55fr)_300px]">
-          <div className="grid min-h-0 gap-3 xl:grid-rows-[auto,minmax(0,1fr)]">
+        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.55fr)_320px]">
+          <div className="grid min-h-0 gap-3 xl:grid-rows-[auto,auto,minmax(0,1fr)]">
             <section className="ui-dark-surface ui-shadow shrink-0 overflow-hidden p-4">
               <div className="mb-2 flex items-center justify-between gap-3">
                 <h2 className="text-sm font-semibold text-white">Description</h2>
@@ -421,6 +575,73 @@ const IssueDetail = () => {
               )}
             </section>
 
+            <section className="ui-dark-surface ui-shadow shrink-0 overflow-hidden p-4">
+              <div className="mb-3 flex items-center justify-between gap-3">
+                <div>
+                  <h2 className="text-sm font-semibold text-white">Attachments</h2>
+                  <p className="mt-1 text-xs text-white/40">Images, logs, PDFs, screenshots</p>
+                </div>
+                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10 hover:text-white">
+                  <IoAttach size={14} />
+                  {isUploading ? 'Uploading...' : 'Upload files'}
+                  <input
+                    type="file"
+                    multiple
+                    className="hidden"
+                    onChange={handleAttachmentUpload}
+                    disabled={isUploading}
+                    accept="image/*,.pdf,.log,.txt,.json"
+                  />
+                </label>
+              </div>
+
+              {issue.attachments?.length > 0 ? (
+                <div className="grid gap-3 md:grid-cols-2">
+                  {issue.attachments.map((attachment) => (
+                    <div
+                      key={attachment._id}
+                      className="rounded-xl border border-white/10 bg-white/[0.03] p-3 transition hover:bg-white/[0.06]"
+                    >
+                      <div className="flex items-start gap-3">
+                        <a
+                          href={getAttachmentUrl(attachment.url)}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="flex min-w-0 flex-1 items-start gap-3"
+                        >
+                          <div className="rounded-lg border border-white/10 bg-[#0d1015] p-2 text-white/70">
+                            {isImageAttachment(attachment) ? <IoImage size={16} /> : <IoDocumentText size={16} />}
+                          </div>
+                          <div className="min-w-0 flex-1">
+                            <p className="truncate text-sm font-semibold text-white">{attachment.name}</p>
+                            <p className="mt-1 text-xs text-white/45">
+                              {formatFileSize(attachment.size)} • {formatDateTime(attachment.uploadedAt)}
+                            </p>
+                            <p className="mt-1 text-xs text-white/35">
+                              Uploaded by {attachment.uploadedBy?.username || 'Unknown'}
+                            </p>
+                          </div>
+                        </a>
+                        <button
+                          type="button"
+                          onClick={() => handleDeleteAttachment(attachment._id)}
+                          disabled={busyAction === `attachment-delete-${attachment._id}`}
+                          className="rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                          title="Delete attachment"
+                        >
+                          <IoTrash size={14} />
+                        </button>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-white/40">
+                  No attachments yet.
+                </div>
+              )}
+            </section>
+
             <section className="ui-dark-surface ui-shadow flex min-h-0 flex-col overflow-hidden p-4">
               <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
                 <h2 className="text-sm font-semibold text-white">Comments</h2>
@@ -440,10 +661,14 @@ const IssueDetail = () => {
                     onChange={(e) => setNewComment(e.target.value)}
                     rows={2}
                     className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm leading-6 text-white"
-                    placeholder="Add context, share updates, or leave a review note..."
+                    placeholder="Add context, share updates, or mention someone with @username..."
                   />
                   <div className="mt-1.5 flex justify-end gap-2">
-                    {newComment && <Button type="button" variant="secondary" size="sm" onClick={() => setNewComment('')}>Clear</Button>}
+                    {newComment && (
+                      <Button type="button" variant="secondary" size="sm" onClick={() => setNewComment('')}>
+                        Clear
+                      </Button>
+                    )}
                     <Button
                       variant="primary"
                       size="sm"
@@ -472,6 +697,11 @@ const IssueDetail = () => {
                                 {comment.author?.username || 'Anonymous'}
                               </p>
                               <span className="text-xs text-white/40">{formatDateTime(comment.updatedAt || comment.createdAt)}</span>
+                              {comment.editHistory?.length > 0 && (
+                                <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/45">
+                                  Edited
+                                </span>
+                              )}
                             </div>
 
                             {isEditingComment ? (
@@ -493,7 +723,15 @@ const IssueDetail = () => {
                               </div>
                             ) : (
                               <>
-                                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">{comment.text}</p>
+                                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">
+                                  {renderTextWithMentions(comment.text)}
+                                </p>
+                                <HistoryBlock
+                                  item={comment}
+                                  historyKey={`comment-${comment._id}`}
+                                  expandedHistory={expandedHistory}
+                                  setExpandedHistory={setExpandedHistory}
+                                />
                                 <CommentActions
                                   onReply={() => {
                                     setEditingTarget({ type: '', commentId: '', replyId: '', text: '' });
@@ -516,7 +754,7 @@ const IssueDetail = () => {
                                   onChange={(e) => setReplyDraft({ commentId: comment._id, text: e.target.value })}
                                   rows={2}
                                   className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white"
-                                  placeholder="Write a reply..."
+                                  placeholder="Write a reply and use @username if needed..."
                                 />
                                 <div className="mt-2 flex gap-2">
                                   <Button
@@ -548,6 +786,7 @@ const IssueDetail = () => {
                                         <IoReturnDownBack size={12} />
                                         <span>{reply.author?.username || 'Anonymous'}</span>
                                         <span>{formatDateTime(reply.updatedAt || reply.createdAt)}</span>
+                                        {reply.editHistory?.length > 0 && <span>edited</span>}
                                       </div>
 
                                       {isEditingReply ? (
@@ -571,7 +810,15 @@ const IssueDetail = () => {
                                         </div>
                                       ) : (
                                         <>
-                                          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">{reply.text}</p>
+                                          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">
+                                            {renderTextWithMentions(reply.text)}
+                                          </p>
+                                          <HistoryBlock
+                                            item={reply}
+                                            historyKey={`reply-${reply._id}`}
+                                            expandedHistory={expandedHistory}
+                                            setExpandedHistory={setExpandedHistory}
+                                          />
                                           <CommentActions
                                             showReply={false}
                                             onReply={() => {}}
@@ -669,37 +916,33 @@ const IssueDetail = () => {
                   )}
                 </DetailRow>
 
-                <DetailRow label="Assignee">
+                <DetailRow label="Assignees">
                   {isEditing ? (
-                    <select
-                      value={editForm.assignee}
-                      onChange={(e) => setEditForm((current) => ({ ...current, assignee: e.target.value }))}
-                      className="w-full min-w-[140px]"
-                    >
-                      <option value="">Unassigned</option>
-                      {users.map((user) => (
-                        <option key={user._id} value={user._id}>{user.username}</option>
-                      ))}
-                    </select>
+                    <MultiUserChecklist
+                      users={users}
+                      selectedIds={editForm.assignees}
+                      onChange={(nextValue) => setEditForm((current) => ({ ...current, assignees: nextValue }))}
+                      emptyLabel="No users available"
+                    />
                   ) : (
-                    <PersonValue user={issue.assignee} emptyLabel="No assignee" />
+                    <span className="block truncate text-sm font-medium text-white/80">
+                      {buildPeopleLabel(currentAssignees, 'No assignees')}
+                    </span>
                   )}
                 </DetailRow>
 
-                <DetailRow label="Reviewer">
+                <DetailRow label="Reviewers">
                   {isEditing ? (
-                    <select
-                      value={editForm.reviewAssignee}
-                      onChange={(e) => setEditForm((current) => ({ ...current, reviewAssignee: e.target.value }))}
-                      className="w-full min-w-[140px]"
-                    >
-                      <option value="">No reviewer</option>
-                      {users.map((user) => (
-                        <option key={user._id} value={user._id}>{user.username}</option>
-                      ))}
-                    </select>
+                    <MultiUserChecklist
+                      users={users}
+                      selectedIds={editForm.reviewAssignees}
+                      onChange={(nextValue) => setEditForm((current) => ({ ...current, reviewAssignees: nextValue }))}
+                      emptyLabel="No users available"
+                    />
                   ) : (
-                    <PersonValue user={issue.reviewAssignee} emptyLabel="No reviewer" />
+                    <span className="block truncate text-sm font-medium text-white/80">
+                      {buildPeopleLabel(currentReviewers, 'No reviewers')}
+                    </span>
                   )}
                 </DetailRow>
 
@@ -716,7 +959,9 @@ const IssueDetail = () => {
                       ))}
                     </select>
                   ) : (
-                    <PersonValue user={issue.reporter} emptyLabel="Not set" />
+                    <span className="block truncate text-sm font-medium text-white/80">
+                      {issue.reporter?.username || 'Not set'}
+                    </span>
                   )}
                 </DetailRow>
 

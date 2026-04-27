@@ -18,5 +18,7 @@ router.delete('/:id/comments/:commentId', issueController.deleteComment);
 router.post('/:id/comments/:commentId/replies', issueController.addReply);
 router.put('/:id/comments/:commentId/replies/:replyId', issueController.updateReply);
 router.delete('/:id/comments/:commentId/replies/:replyId', issueController.deleteReply);
+router.post('/:id/attachments', issueController.addAttachment);
+router.delete('/:id/attachments/:attachmentId', issueController.deleteAttachment);
 
 export default router;

@@ -1,15 +1,22 @@
+import fs from 'fs/promises';
+import path from 'path';
 import Issue from '../models/Issue.js';
 import Project from '../models/Project.js';
+import User from '../models/User.js';
+import { env } from '../config/env.js';
 import { buildProjectAccessFilter, hasProjectAccess, isAdmin, isIssueVisibleToUser } from '../middleware/auth.js';
-import { notify } from '../utils/notificationEngine.js';
+import { notify, notifyMentionedUsers } from '../utils/notificationEngine.js';
 
 const issuePopulate = [
-  { path: 'assignee', select: 'username email role' },
-  { path: 'reviewAssignee', select: 'username email role' },
+  { path: 'assignees', select: 'username email role' },
+  { path: 'reviewAssignees', select: 'username email role' },
   { path: 'reporter', select: 'username email role' },
   { path: 'watchers', select: 'username email role' },
+  { path: 'attachments.uploadedBy', select: 'username email role' },
   { path: 'comments.author', select: 'username email role' },
+  { path: 'comments.editHistory.editedBy', select: 'username email role' },
   { path: 'comments.replies.author', select: 'username email role' },
+  { path: 'comments.replies.editHistory.editedBy', select: 'username email role' },
   {
     path: 'project',
     populate: [
@@ -28,11 +35,6 @@ const issuePopulate = [
   },
 ];
 
-const sanitizeIssuePayload = (payload) =>
-  Object.fromEntries(
-    Object.entries(payload).filter(([, value]) => value !== undefined)
-  );
-
 const workflowProjectPopulate = {
   path: 'workflow',
   populate: [
@@ -41,15 +43,29 @@ const workflowProjectPopulate = {
   ],
 };
 
+const uploadsRoot = path.resolve(env.uploadsDir, 'issues');
+
+const sanitizeIssuePayload = (payload) =>
+  Object.fromEntries(Object.entries(payload).filter(([, value]) => value !== undefined));
+
+const toId = (value) => String(value?._id || value || '');
+const uniqueUserIds = (values = []) => [...new Set(values.map((value) => toId(value)).filter(Boolean))];
+
+const toArray = (value) => {
+  if (Array.isArray(value)) return value.filter(Boolean);
+  if (value === undefined || value === null || value === '') return [];
+  return [value];
+};
+
+const buildIssueWatchers = (...valueGroups) => uniqueUserIds(valueGroups.flat());
+
 const getAllowedWorkflowStatuses = (project) =>
   (project?.workflow?.states || [])
     .filter((state) => state?.isActive !== false && state?.name)
     .map((state) => state.name);
 
 const getInitialWorkflowStatus = (project) =>
-  project?.workflow?.defaultState?.name ||
-  getAllowedWorkflowStatuses(project)[0] ||
-  'To Do';
+  project?.workflow?.defaultState?.name || getAllowedWorkflowStatuses(project)[0] || 'To Do';
 
 const validateWorkflowStatus = (status, allowedStatuses) =>
   !status || allowedStatuses.length === 0 || allowedStatuses.includes(status);
@@ -63,7 +79,7 @@ const getProjectWithWorkflow = (projectId) =>
 const findCommentById = (comments, commentId) => {
   for (const comment of comments) {
     if (String(comment._id) === String(commentId)) {
-      return { comment, parentArray: comments };
+      return { comment };
     }
   }
 
@@ -84,10 +100,108 @@ const findReplyById = (comments, replyId) => {
 const isCommentOwnerOrAdmin = (user, author) =>
   isAdmin(user) || String(author?._id || author) === String(user?._id);
 
-const uniqueUserIds = (values = []) =>
-  [...new Set(values.map((value) => String(value?._id || value || '')).filter(Boolean))];
+const normalizeIssuePeople = (payload = {}) => ({
+  assignees: uniqueUserIds(toArray(payload.assignees).concat(toArray(payload.assignee))),
+  reviewAssignees: uniqueUserIds(toArray(payload.reviewAssignees).concat(toArray(payload.reviewAssignee))),
+});
 
-const buildIssueWatchers = (...valueGroups) => uniqueUserIds(valueGroups.flat());
+const mentionPattern = /(^|\s)@([a-zA-Z0-9._-]+)/g;
+
+const extractMentionUsernames = (text = '') => {
+  const usernames = new Set();
+  let match = mentionPattern.exec(text);
+
+  while (match) {
+    usernames.add(match[2].toLowerCase());
+    match = mentionPattern.exec(text);
+  }
+
+  mentionPattern.lastIndex = 0;
+  return [...usernames];
+};
+
+const resolveMentionedUserIds = async (text, actorId) => {
+  const usernames = extractMentionUsernames(text);
+
+  if (usernames.length === 0) {
+    return [];
+  }
+
+  const users = await User.find({
+    username: { $in: usernames.map((name) => new RegExp(`^${name}$`, 'i')) },
+    active: true,
+  }).select('_id');
+
+  return uniqueUserIds(users.map((user) => user._id)).filter((id) => id !== String(actorId || ''));
+};
+
+const notifyMentionsFromText = async (issue, text, actor) => {
+  const mentionedUserIds = await resolveMentionedUserIds(text, actor?._id);
+
+  if (mentionedUserIds.length === 0) {
+    return;
+  }
+
+  await notifyMentionedUsers(issue._id, mentionedUserIds, {
+    actorName: actor?.username || actor?.email || 'A teammate',
+    text,
+  });
+};
+
+const getAttachmentExtension = (filename = '', mimeType = '') => {
+  const explicit = path.extname(filename);
+  if (explicit) return explicit.toLowerCase();
+
+  const mimeMap = {
+    'image/png': '.png',
+    'image/jpeg': '.jpg',
+    'image/jpg': '.jpg',
+    'image/webp': '.webp',
+    'application/pdf': '.pdf',
+    'text/plain': '.txt',
+    'application/json': '.json',
+    'text/log': '.log',
+  };
+
+  return mimeMap[mimeType] || '';
+};
+
+const sanitizeFilename = (name = 'attachment') =>
+  name.replace(/[^a-zA-Z0-9._-]/g, '-').replace(/-+/g, '-').replace(/^-|-$/g, '') || 'attachment';
+
+const saveAttachmentFile = async ({ issueId, name, mimeType, content }) => {
+  const normalizedContent = String(content || '');
+  const base64Content = normalizedContent.includes(',')
+    ? normalizedContent.split(',').pop()
+    : normalizedContent;
+  const buffer = Buffer.from(base64Content, 'base64');
+  const extension = getAttachmentExtension(name, mimeType);
+  const timestamp = Date.now();
+  const fileBase = sanitizeFilename(path.basename(name, path.extname(name)));
+  const fileName = `${issueId}-${timestamp}-${fileBase}${extension}`;
+  const issueDir = path.join(uploadsRoot, issueId);
+
+  await fs.mkdir(issueDir, { recursive: true });
+  await fs.writeFile(path.join(issueDir, fileName), buffer);
+
+  return {
+    size: buffer.byteLength,
+    url: `/uploads/issues/${issueId}/${fileName}`,
+  };
+};
+
+const deleteAttachmentFile = async (attachmentUrl = '') => {
+  const relativePath = attachmentUrl.replace(/^\/+/, '');
+  const absolutePath = path.resolve(env.uploadsDir, relativePath.replace(/^uploads[\\/]/, ''));
+
+  try {
+    await fs.unlink(absolutePath);
+  } catch (error) {
+    if (error?.code !== 'ENOENT') {
+      throw error;
+    }
+  }
+};
 
 export const createIssue = async (req, res) => {
   try {
@@ -97,8 +211,6 @@ export const createIssue = async (req, res) => {
       issueType,
       priority,
       status,
-      assignee,
-      reviewAssignee,
       reporter,
       project,
       customFields,
@@ -121,12 +233,10 @@ export const createIssue = async (req, res) => {
     const resolvedStatus = status || getInitialWorkflowStatus(selectedProject);
 
     if (!validateWorkflowStatus(resolvedStatus, allowedStatuses)) {
-      return res.status(400).json({
-        error: 'Status is not valid for the project workflow',
-      });
+      return res.status(400).json({ error: 'Status is not valid for the project workflow' });
     }
 
-    // Generate unique issue ID
+    const issuePeople = normalizeIssuePeople(req.body);
     const issueId = `ISSUE-${Date.now()}`;
 
     const issue = new Issue({
@@ -136,13 +246,12 @@ export const createIssue = async (req, res) => {
       issueType: issueType || 'Task',
       priority: priority || 'Medium',
       status: resolvedStatus,
-      assignee: assignee || null,
-      reviewAssignee: reviewAssignee || null,
+      ...issuePeople,
       reporter: isAdmin(req.user) ? reporter || null : req.user._id,
       watchers: buildIssueWatchers(
         isAdmin(req.user) ? reporter || null : req.user._id,
-        assignee || null,
-        reviewAssignee || null
+        issuePeople.assignees,
+        issuePeople.reviewAssignees
       ),
       project,
       customFields: customFields || {},
@@ -160,11 +269,11 @@ export const createIssue = async (req, res) => {
 export const getIssues = async (req, res) => {
   try {
     const { status, priority, assignee, project } = req.query;
-    let filter = {};
+    const filter = {};
 
     if (status) filter.status = status;
     if (priority) filter.priority = priority;
-    if (assignee) filter.assignee = assignee;
+    if (assignee) filter.assignees = assignee;
     if (project) filter.project = project;
 
     if (!isAdmin(req.user)) {
@@ -180,9 +289,7 @@ export const getIssues = async (req, res) => {
         : { $in: accessibleProjectIds };
     }
 
-    const issues = await Issue.find(filter)
-      .populate(issuePopulate);
-
+    const issues = await Issue.find(filter).populate(issuePopulate);
     res.json(issues);
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -191,8 +298,7 @@ export const getIssues = async (req, res) => {
 
 export const getIssueById = async (req, res) => {
   try {
-    const issue = await Issue.findById(req.params.id)
-      .populate(issuePopulate);
+    const issue = await Issue.findById(req.params.id).populate(issuePopulate);
 
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
@@ -216,8 +322,6 @@ export const updateIssue = async (req, res) => {
       issueType,
       priority,
       status,
-      assignee,
-      reviewAssignee,
       reporter,
       customFields,
     } = req.body;
@@ -237,12 +341,10 @@ export const updateIssue = async (req, res) => {
 
     const allowedStatuses = getAllowedWorkflowStatuses(existingIssue.project);
     if (!validateWorkflowStatus(status, allowedStatuses)) {
-      return res.status(400).json({
-        error: 'Status is not valid for the project workflow',
-      });
+      return res.status(400).json({ error: 'Status is not valid for the project workflow' });
     }
 
-    const previousAssigneeId = String(existingIssue.assignee?._id || existingIssue.assignee || '');
+    const previousAssigneeIds = uniqueUserIds(existingIssue.assignees || []);
 
     const updates = sanitizeIssuePayload({
       title,
@@ -250,26 +352,30 @@ export const updateIssue = async (req, res) => {
       issueType,
       priority,
       status,
-      assignee,
-      reviewAssignee,
       reporter,
       customFields,
+      ...normalizeIssuePeople(req.body),
     });
 
     Object.assign(existingIssue, updates);
     existingIssue.watchers = buildIssueWatchers(
       existingIssue.watchers || [],
-      existingIssue.assignee,
-      existingIssue.reviewAssignee,
+      existingIssue.assignees || [],
+      existingIssue.reviewAssignees || [],
       existingIssue.reporter
     );
     await existingIssue.save();
     await existingIssue.populate(issuePopulate);
-    const nextAssigneeId = String(existingIssue.assignee?._id || existingIssue.assignee || '');
 
-    if (assignee !== undefined && previousAssigneeId !== nextAssigneeId) {
+    const nextAssigneeIds = uniqueUserIds(existingIssue.assignees || []);
+    const assigneeChanged =
+      previousAssigneeIds.length !== nextAssigneeIds.length ||
+      previousAssigneeIds.some((id) => !nextAssigneeIds.includes(id));
+
+    if ((req.body.assignee !== undefined || req.body.assignees !== undefined) && assigneeChanged) {
       await notify('TASK_ASSIGNED', existingIssue._id);
     }
+
     await notify('TASK_UPDATED', existingIssue._id);
     res.json({ message: 'Issue updated successfully', issue: existingIssue });
   } catch (error) {
@@ -287,6 +393,7 @@ export const deleteIssue = async (req, res) => {
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
+
     res.json({ message: 'Issue deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -302,7 +409,6 @@ export const addComment = async (req, res) => {
     }
 
     const issue = await Issue.findById(req.params.id);
-
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
@@ -315,12 +421,22 @@ export const addComment = async (req, res) => {
     issue.comments.push({
       text: text.trim(),
       author: req.user._id,
+      editHistory: [],
       replies: [],
     });
-    issue.watchers = buildIssueWatchers(issue.watchers || [], req.user._id, issue.assignee, issue.reviewAssignee, issue.reporter);
+    issue.watchers = buildIssueWatchers(
+      issue.watchers || [],
+      req.user._id,
+      issue.assignees || [],
+      issue.reviewAssignees || [],
+      issue.reporter
+    );
+
     await issue.save();
     await issue.populate(issuePopulate);
     await notify('TASK_COMMENTED', issue._id);
+    await notifyMentionsFromText(issue, text.trim(), req.user);
+
     res.json({ message: 'Comment added successfully', issue });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -354,9 +470,16 @@ export const updateComment = async (req, res) => {
       return res.status(403).json({ error: 'You can only edit your own comments' });
     }
 
+    result.comment.editHistory.push({
+      text: result.comment.text,
+      editedAt: new Date(),
+      editedBy: req.user._id,
+    });
     result.comment.text = text.trim();
+
     await issue.save();
     await issue.populate(issuePopulate);
+    await notifyMentionsFromText(issue, text.trim(), req.user);
 
     res.json({ message: 'Comment updated successfully', issue });
   } catch (error) {
@@ -421,11 +544,20 @@ export const addReply = async (req, res) => {
     result.comment.replies.push({
       text: text.trim(),
       author: req.user._id,
+      editHistory: [],
     });
-    issue.watchers = buildIssueWatchers(issue.watchers || [], req.user._id, issue.assignee, issue.reviewAssignee, issue.reporter);
+    issue.watchers = buildIssueWatchers(
+      issue.watchers || [],
+      req.user._id,
+      issue.assignees || [],
+      issue.reviewAssignees || [],
+      issue.reporter
+    );
+
     await issue.save();
     await issue.populate(issuePopulate);
     await notify('TASK_COMMENTED', issue._id);
+    await notifyMentionsFromText(issue, text.trim(), req.user);
 
     res.json({ message: 'Reply added successfully', issue });
   } catch (error) {
@@ -460,9 +592,16 @@ export const updateReply = async (req, res) => {
       return res.status(403).json({ error: 'You can only edit your own replies' });
     }
 
+    result.reply.editHistory.push({
+      text: result.reply.text,
+      editedAt: new Date(),
+      editedBy: req.user._id,
+    });
     result.reply.text = text.trim();
+
     await issue.save();
     await issue.populate(issuePopulate);
+    await notifyMentionsFromText(issue, text.trim(), req.user);
 
     res.json({ message: 'Reply updated successfully', issue });
   } catch (error) {
@@ -503,16 +642,77 @@ export const deleteReply = async (req, res) => {
 
 export const addAttachment = async (req, res) => {
   try {
-    const { url, name } = req.body;
-    const issue = await Issue.findByIdAndUpdate(
-      req.params.id,
-      { $push: { attachments: { url, name, uploadedAt: new Date() } } },
-      { new: true }
-    );
+    const { name, mimeType, content } = req.body;
+
+    if (!name || !content) {
+      return res.status(400).json({ error: 'Attachment name and content are required' });
+    }
+
+    const issue = await Issue.findById(req.params.id);
     if (!issue) {
       return res.status(404).json({ error: 'Issue not found' });
     }
-    res.json(issue);
+
+    await issue.populate(issuePopulate);
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
+    }
+
+    const savedFile = await saveAttachmentFile({
+      issueId: String(issue._id),
+      name,
+      mimeType,
+      content,
+    });
+
+    issue.attachments.push({
+      name,
+      url: savedFile.url,
+      mimeType: mimeType || '',
+      size: savedFile.size,
+      uploadedBy: req.user._id,
+      uploadedAt: new Date(),
+    });
+
+    await issue.save();
+    await issue.populate(issuePopulate);
+
+    res.json({ message: 'Attachment uploaded successfully', issue });
+  } catch (error) {
+    res.status(500).json({ error: error.message });
+  }
+};
+
+export const deleteAttachment = async (req, res) => {
+  try {
+    const issue = await Issue.findById(req.params.id);
+    if (!issue) {
+      return res.status(404).json({ error: 'Issue not found' });
+    }
+
+    await issue.populate(issuePopulate);
+    if (!isIssueVisibleToUser(req.user, issue)) {
+      return res.status(403).json({ error: 'You do not have access to this issue' });
+    }
+
+    const attachment = issue.attachments.id(req.params.attachmentId);
+    if (!attachment) {
+      return res.status(404).json({ error: 'Attachment not found' });
+    }
+
+    const canDelete =
+      isAdmin(req.user) || String(attachment.uploadedBy?._id || attachment.uploadedBy || '') === String(req.user._id);
+
+    if (!canDelete) {
+      return res.status(403).json({ error: 'You can only delete your own attachments' });
+    }
+
+    await deleteAttachmentFile(attachment.url);
+    attachment.deleteOne();
+    await issue.save();
+    await issue.populate(issuePopulate);
+
+    res.json({ message: 'Attachment deleted successfully', issue });
   } catch (error) {
     res.status(500).json({ error: error.message });
   }

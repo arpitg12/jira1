@@ -1,13 +1,9 @@
 import mongoose from 'mongoose';
-import dotenv from 'dotenv';
-
-dotenv.config();
+import { env } from './env.js';
 
 const connectDB = async () => {
   try {
-    const mongoURI = process.env.MONGODB_URI || 'mongodb://localhost:27017/jira-app';
-    
-    await mongoose.connect(mongoURI);
+    await mongoose.connect(env.mongoUri);
     
     console.log('MongoDB connected successfully');
     return mongoose.connection;
