@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
-import { IoAdd, IoPencil, IoTrash } from 'react-icons/io5';
+import { IoAdd, IoPencil, IoTrash, IoSearch, IoClose, IoFilter } from 'react-icons/io5';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Breadcrumb, Button, Modal, Badge } from '../../components/common';
 import {
@@ -10,6 +10,7 @@ import {
   getProjects,
   getUsers,
   updateIssue,
+  getGlobalStates
 } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
 
@@ -25,6 +26,14 @@ const emptyIssueForm = {
   reporter: '',
   project: '',
   status: 'To Do',
+};
+
+const emptyFilters = {
+  search: '',
+  type: '',
+  priority: '',
+  status: '',
+  assignee: '',
 };
 
 const uniqueUsers = (userList) => {
@@ -70,6 +79,7 @@ const Issues = () => {
   const [issues, setIssues] = useState([]);
   const [projects, setProjects] = useState([]);
   const [users, setUsers] = useState([]);
+  const [globalStates, setGlobalStates] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [activeFilter, setActiveFilter] = useState('All');
@@ -77,6 +87,8 @@ const Issues = () => {
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
   const [issueForm, setIssueForm] = useState(emptyIssueForm);
   const [selectedIssue, setSelectedIssue] = useState(null);
+  const [filters, setFilters] = useState(emptyFilters);
+  const [showFilters, setShowFilters] = useState(false);
 
   useEffect(() => {
     setActiveFilter('All');
@@ -86,21 +98,22 @@ const Issues = () => {
     const selectedProject = projects.find((project) => project._id === projectId);
     const workflowStatuses =
       selectedProject?.workflow?.states?.map((state) => state?.name).filter(Boolean) || [];
-
     return workflowStatuses.length > 0 ? workflowStatuses : DEFAULT_STATUS_OPTIONS;
   };
 
   const fetchData = useCallback(async () => {
     try {
       setLoading(true);
-      const [issuesData, projectsData, usersData] = await Promise.all([
+      const [issuesData, projectsData, usersData, statesData] = await Promise.all([
         getIssues(),
         getProjects(),
         isAdmin ? getUsers() : Promise.resolve([]),
+        getGlobalStates(),
       ]);
       setIssues(issuesData || []);
       setProjects(projectsData || []);
       setUsers(usersData || []);
+      setGlobalStates(statesData || []);
       setError('');
     } catch (err) {
       setError('Failed to fetch data');
@@ -125,7 +138,6 @@ const Issues = () => {
       alert('Please enter issue title and select project');
       return;
     }
-
     try {
       await createIssue({
         title: issueForm.title,
@@ -149,7 +161,6 @@ const Issues = () => {
   const handleEditIssue = async (e) => {
     e.preventDefault();
     if (!selectedIssue) return;
-
     try {
       await updateIssue(selectedIssue._id, {
         title: issueForm.title,
@@ -188,7 +199,6 @@ const Issues = () => {
 
   const handleDeleteIssue = async (issueId) => {
     if (!window.confirm('Are you sure you want to delete this issue?')) return;
-
     try {
       await deleteIssue(issueId);
       await fetchData();
@@ -197,6 +207,17 @@ const Issues = () => {
       alert(err.message || 'Failed to delete issue');
     }
   };
+
+  const updateFilter = (key, value) => setFilters((prev) => ({ ...prev, [key]: value }));
+
+  const clearFilters = () => setFilters(emptyFilters);
+
+  const activeFilterCount = Object.values(filters).filter(Boolean).length;
+
+  const allStatuses = globalStates?.map((state) => state.name) || DEFAULT_STATUS_OPTIONS;
+
+  // Derive unique assignees across all issues
+  const allAssignees = uniqueUsers(issues.flatMap((i) => i.assignees || []));
 
   const priorityColors = {
     Low: 'text-blue-600',
@@ -217,13 +238,35 @@ const Issues = () => {
     const assigneeIds = uniqueUsers(issue.assignees).map((entry) => entry._id);
     const reviewerIds = uniqueUsers(issue.reviewAssignees).map((entry) => entry._id);
 
-    if (activeFilter === 'All') return true;
-    if (activeFilter === 'Bug') return issue.issueType === 'Bug';
-    if (activeFilter === 'Critical') return issue.priority === 'Critical';
-    if (activeFilter === 'In Progress') return issue.status === 'In Progress';
+    // Quick-filter tabs
+    if (activeFilter === 'Bug' && issue.issueType !== 'Bug') return false;
+    if (activeFilter === 'Critical' && issue.priority !== 'Critical') return false;
+    if (activeFilter === 'In Progress' && issue.status !== 'In Progress') return false;
     if (activeFilter === 'My Issues') {
-      return [...assigneeIds, ...reviewerIds, issue.reporter?._id].includes(user?._id);
+      const involved = [...assigneeIds, ...reviewerIds, issue.reporter?._id];
+      if (!involved.includes(user?._id)) return false;
     }
+
+    // Search: title or issueId
+    if (filters.search) {
+      const q = filters.search.toLowerCase();
+      const matchesTitle = issue.title?.toLowerCase().includes(q);
+      const matchesId = issue.issueId?.toLowerCase().includes(q);
+      if (!matchesTitle && !matchesId) return false;
+    }
+
+    // Type filter
+    if (filters.type && issue.issueType !== filters.type) return false;
+
+    // Priority filter
+    if (filters.priority && issue.priority !== filters.priority) return false;
+
+    // Status filter
+    if (filters.status && issue.status !== filters.status) return false;
+
+    // Assignee filter
+    if (filters.assignee && !assigneeIds.includes(filters.assignee)) return false;
+
     return true;
   });
 
@@ -415,8 +458,9 @@ const Issues = () => {
           <div className="py-10 text-center text-sm text-white/70">Loading issues...</div>
         ) : (
           <>
+            {/* Quick-filter tabs */}
             <div className="mb-4 flex flex-wrap items-center gap-2">
-              {filterTabs.map((tab) => (
+              {/* {filterTabs.map((tab) => (
                 <button
                   key={tab.key}
                   type="button"
@@ -429,7 +473,180 @@ const Issues = () => {
                 >
                   {tab.label}
                 </button>
-              ))}
+              ))} */}
+
+              {/* Filter toggle button */}
+              <button
+                type="button"
+                onClick={() => setShowFilters((prev) => !prev)}
+                className={`ml-auto flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition ${
+                  showFilters || activeFilterCount > 0
+                    ? 'border-[#5b5dff]/50 bg-[#2a2cff]/25 text-white'
+                    : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
+                }`}
+              >
+                <IoFilter size={14} />
+                Filters
+                {activeFilterCount > 0 && (
+                  <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#5b5dff] text-[10px] font-bold text-white">
+                    {activeFilterCount}
+                  </span>
+                )}
+              </button>
+            </div>
+
+            {/* Advanced search & filter bar */}
+            {showFilters && (
+              <div className="mb-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+                <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                  {/* Search */}
+                  <div className="relative xl:col-span-2">
+                    <IoSearch
+                      size={14}
+                      className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
+                    />
+                    <input
+                      type="text"
+                      placeholder="Search by title or issue ID…"
+                      value={filters.search}
+                      onChange={(e) => updateFilter('search', e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pl-8 pr-3 text-sm text-white placeholder-white/30 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                    />
+                    {filters.search && (
+                      <button
+                        type="button"
+                        onClick={() => updateFilter('search', '')}
+                        className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                      >
+                        <IoClose size={14} />
+                      </button>
+                    )}
+                  </div>
+
+                  {/* Type */}
+                  <div>
+                    <select
+                      value={filters.type}
+                      onChange={(e) => updateFilter('type', e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-[#0e1015] py-2 px-3 text-sm text-white/80 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                    >
+                      <option value="">All Types</option>
+                      <option value="Task">Task</option>
+                      <option value="Bug">Bug</option>
+                      <option value="Feature">Feature</option>
+                      <option value="Improvement">Improvement</option>
+                    </select>
+                  </div>
+
+                  {/* Priority */}
+                  <div>
+                    <select
+                      value={filters.priority}
+                      onChange={(e) => updateFilter('priority', e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-[#0e1015] py-2 px-3 text-sm text-white/80 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                    >
+                      <option value="">All Priorities</option>
+                      <option value="Low">Low</option>
+                      <option value="Medium">Medium</option>
+                      <option value="High">High</option>
+                      <option value="Critical">Critical</option>
+                    </select>
+                  </div>
+
+                  {/* Status */}
+                  <div>
+                    <select
+                      value={filters.status}
+                      onChange={(e) => updateFilter('status', e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-[#0e1015] py-2 px-3 text-sm text-white/80 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                    >
+                      <option value="">All Statuses</option>
+                      {allStatuses.map((s) => (
+                        <option key={s} value={s}>
+                          {s}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+
+                  {/* Assignee */}
+                  <div>
+                    <select
+                      value={filters.assignee}
+                      onChange={(e) => updateFilter('assignee', e.target.value)}
+                      className="w-full rounded-lg border border-white/10 bg-[#0e1015] py-2 px-3 text-sm text-white/80 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                    >
+                      <option value="">All Assignees</option>
+                      {allAssignees.map((u) => (
+                        <option key={u._id} value={u._id}>
+                          {u.username}
+                        </option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                {/* Active filter chips + clear all */}
+                {activeFilterCount > 0 && (
+                  <div className="mt-3 flex flex-wrap items-center gap-2">
+                    {filters.search && (
+                      <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                        Search: <span className="font-medium text-white">"{filters.search}"</span>
+                        <button type="button" onClick={() => updateFilter('search', '')} className="ml-1 hover:text-white">
+                          <IoClose size={11} />
+                        </button>
+                      </span>
+                    )}
+                    {filters.type && (
+                      <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                        Type: <span className="font-medium text-white">{filters.type}</span>
+                        <button type="button" onClick={() => updateFilter('type', '')} className="ml-1 hover:text-white">
+                          <IoClose size={11} />
+                        </button>
+                      </span>
+                    )}
+                    {filters.priority && (
+                      <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                        Priority: <span className="font-medium text-white">{filters.priority}</span>
+                        <button type="button" onClick={() => updateFilter('priority', '')} className="ml-1 hover:text-white">
+                          <IoClose size={11} />
+                        </button>
+                      </span>
+                    )}
+                    {filters.status && (
+                      <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                        Status: <span className="font-medium text-white">{filters.status}</span>
+                        <button type="button" onClick={() => updateFilter('status', '')} className="ml-1 hover:text-white">
+                          <IoClose size={11} />
+                        </button>
+                      </span>
+                    )}
+                    {filters.assignee && (
+                      <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                        Assignee:{' '}
+                        <span className="font-medium text-white">
+                          {allAssignees.find((u) => u._id === filters.assignee)?.username || filters.assignee}
+                        </span>
+                        <button type="button" onClick={() => updateFilter('assignee', '')} className="ml-1 hover:text-white">
+                          <IoClose size={11} />
+                        </button>
+                      </span>
+                    )}
+                    <button
+                      type="button"
+                      onClick={clearFilters}
+                      className="ml-auto text-xs text-white/40 hover:text-white/70 underline"
+                    >
+                      Clear all
+                    </button>
+                  </div>
+                )}
+              </div>
+            )}
+
+            {/* Results count */}
+            <div className="mb-2 text-xs text-white/40">
+              {filteredIssues.length} {filteredIssues.length === 1 ? 'issue' : 'issues'} found
             </div>
 
             <div className="overflow-x-auto rounded-2xl border border-white/10 bg-white/5 ui-shadow">
