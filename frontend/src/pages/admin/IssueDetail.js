@@ -115,6 +115,31 @@ const createEditForm = (issueData) => ({
 const buildPeopleLabel = (users = [], emptyLabel = 'Not set') =>
   users.length > 0 ? users.map((user) => user?.username).filter(Boolean).join(', ') : emptyLabel;
 
+const getInitials = (username = '') =>
+  username.slice(0, 2).toUpperCase();
+
+const UserPills = ({ users = [], emptyLabel = 'Not set' }) => {
+  if (users.length === 0) {
+    return <span className="text-sm text-white/40">{emptyLabel}</span>;
+  }
+  return (
+    <div className="flex flex-wrap justify-end gap-1.5">
+      {users.map((user) => (
+        <span
+          key={user._id}
+          className="inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/[0.06] px-2 py-1 text-xs font-medium text-white/80"
+          title={user.username}
+        >
+          <span className="flex h-4 w-4 shrink-0 items-center justify-center rounded-full bg-white/15 text-[9px] font-bold text-white/90">
+            {getInitials(user.username)}
+          </span>
+          <span className="max-w-[80px] truncate">{user.username}</span>
+        </span>
+      ))}
+    </div>
+  );
+};
+
 const getAttachmentUrl = (url) => (url?.startsWith('http') ? url : `${env.uploadsBaseUrl}${url}`);
 const isImageAttachment = (attachment) => attachment?.mimeType?.startsWith('image/');
 
@@ -144,10 +169,15 @@ const renderTextWithMentions = (text) => {
   );
 };
 
-const DetailRow = ({ label, children }) => (
-  <div className="flex items-center justify-between gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5">
+// ── Reusable section label (replaces old bold h2 inside each card) ──────────
+const SectionLabel = ({ children }) => (
+  <p className="text-xs font-semibold uppercase tracking-[0.16em] text-white/40">{children}</p>
+);
+
+const DetailRow = ({ label, children, wrap = false }) => (
+  <div className={`flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 ${wrap ? 'flex-col items-start' : 'items-center justify-between'}`}>
     <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.16em] text-white/40">{label}</p>
-    <div className="min-w-0 text-right">{children}</div>
+    <div className={wrap ? 'w-full' : 'min-w-0 text-right'}>{children}</div>
   </div>
 );
 
@@ -478,6 +508,8 @@ const IssueDetail = () => {
   return (
     <AdminLayout>
       <div className="-mx-3 flex h-[calc(100vh-104px)] flex-col overflow-hidden ui-dark-page px-3 py-3 md:-mx-5 md:px-5 md:py-4">
+
+        {/* ── Top bar ─────────────────────────────────────────────────────── */}
         <div className="ui-dark-surface-strong ui-shadow mb-3 flex shrink-0 items-center gap-3 overflow-hidden px-4 py-2.5">
           <button
             type="button"
@@ -545,117 +577,135 @@ const IssueDetail = () => {
           </div>
         )}
 
+        {/* ── Main two-column layout ───────────────────────────────────────── */}
         <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.55fr)_320px]">
-          <div className="grid min-h-0 gap-3 xl:grid-rows-[auto,auto,minmax(0,1fr)]">
-            <section className="ui-dark-surface ui-shadow shrink-0 overflow-hidden p-4">
-              <div className="mb-2 flex items-center justify-between gap-3">
-                <h2 className="text-sm font-semibold text-white">Description</h2>
-                <div className="flex flex-wrap items-center gap-2">
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getTypeClasses(issue.issueType)}`}>
-                    {issue.issueType}
-                  </span>
-                  <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusClasses(issue.status)}`}>
-                    {issue.status}
-                  </span>
-                </div>
-              </div>
 
-              {isEditing ? (
-                <textarea
-                  value={editForm.description}
-                  onChange={(e) => setEditForm((current) => ({ ...current, description: e.target.value }))}
-                  rows={4}
-                  className="w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white"
-                  placeholder="Add a clear description so the team knows what needs to happen."
-                />
-              ) : (
-                <div className="max-h-24 overflow-y-auto rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm leading-6 text-white/80">
-                  {issue.description || 'No description has been added for this issue yet.'}
-                </div>
-              )}
-            </section>
+          {/* ── LEFT: single unified card, fully scrollable ─────────────────── */}
+          <div className="min-h-0 overflow-y-auto">
+            <div className="ui-dark-surface ui-shadow overflow-hidden">
 
-            <section className="ui-dark-surface ui-shadow shrink-0 overflow-hidden p-4">
-              <div className="mb-3 flex items-center justify-between gap-3">
-                <div>
-                  <h2 className="text-sm font-semibold text-white">Attachments</h2>
-                  <p className="mt-1 text-xs text-white/40">Images, logs, PDFs, screenshots</p>
+              {/* ── Description ─────────────────────────────────────────────── */}
+              <section className="p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <SectionLabel>Description</SectionLabel>
+                  <div className="flex flex-wrap items-center gap-2">
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getTypeClasses(issue.issueType)}`}>
+                      {issue.issueType}
+                    </span>
+                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusClasses(issue.status)}`}>
+                      {issue.status}
+                    </span>
+                  </div>
                 </div>
-                <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10 hover:text-white">
-                  <IoAttach size={14} />
-                  {isUploading ? 'Uploading...' : 'Upload files'}
-                  <input
-                    type="file"
-                    multiple
-                    className="hidden"
-                    onChange={handleAttachmentUpload}
-                    disabled={isUploading}
-                    accept="image/*,.pdf,.log,.txt,.json"
+
+                {isEditing ? (
+                  <textarea
+                    value={editForm.description}
+                    onChange={(e) => setEditForm((current) => ({ ...current, description: e.target.value }))}
+                    rows={4}
+                    className="w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white"
+                    placeholder="Add a clear description so the team knows what needs to happen."
                   />
-                </label>
-              </div>
+                ) : (
+                  <p className="text-sm leading-6 text-white/75 whitespace-pre-wrap">
+                    {issue.description || (
+                      <span className="text-white/35 italic">No description has been added for this issue yet.</span>
+                    )}
+                  </p>
+                )}
+              </section>
 
-              {issue.attachments?.length > 0 ? (
-                <div className="grid gap-3 md:grid-cols-2">
-                  {issue.attachments.map((attachment) => (
-                    <div
-                      key={attachment._id}
-                      className="rounded-xl border border-white/10 bg-white/[0.03] p-3 transition hover:bg-white/[0.06]"
-                    >
-                      <div className="flex items-start gap-3">
-                        <a
-                          href={getAttachmentUrl(attachment.url)}
-                          target="_blank"
-                          rel="noreferrer"
-                          className="flex min-w-0 flex-1 items-start gap-3"
-                        >
-                          <div className="rounded-lg border border-white/10 bg-[#0d1015] p-2 text-white/70">
-                            {isImageAttachment(attachment) ? <IoImage size={16} /> : <IoDocumentText size={16} />}
-                          </div>
-                          <div className="min-w-0 flex-1">
-                            <p className="truncate text-sm font-semibold text-white">{attachment.name}</p>
-                            <p className="mt-1 text-xs text-white/45">
-                              {formatFileSize(attachment.size)} • {formatDateTime(attachment.uploadedAt)}
-                            </p>
-                            <p className="mt-1 text-xs text-white/35">
-                              Uploaded by {attachment.uploadedBy?.username || 'Unknown'}
-                            </p>
-                          </div>
-                        </a>
-                        <button
-                          type="button"
-                          onClick={() => handleDeleteAttachment(attachment._id)}
-                          disabled={busyAction === `attachment-delete-${attachment._id}`}
-                          className="rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
-                          title="Delete attachment"
-                        >
-                          <IoTrash size={14} />
-                        </button>
+              {/* ── Divider ─────────────────────────────────────────────────── */}
+              <div className="border-t border-white/[0.06]" />
+
+              {/* ── Attachments ─────────────────────────────────────────────── */}
+              <section className="p-5">
+                <div className="mb-3 flex items-center justify-between gap-3">
+                  <div>
+                    <SectionLabel>Attachments</SectionLabel>
+                    <p className="mt-1 text-xs text-white/30">Images, logs, PDFs, screenshots</p>
+                  </div>
+                  <label className="inline-flex cursor-pointer items-center gap-2 rounded-lg border border-white/10 bg-white/5 px-3 py-2 text-xs text-white/75 hover:bg-white/10 hover:text-white">
+                    <IoAttach size={14} />
+                    {isUploading ? 'Uploading...' : 'Upload files'}
+                    <input
+                      type="file"
+                      multiple
+                      className="hidden"
+                      onChange={handleAttachmentUpload}
+                      disabled={isUploading}
+                      accept="image/*,.pdf,.log,.txt,.json"
+                    />
+                  </label>
+                </div>
+
+                {issue.attachments?.length > 0 ? (
+                  <div className="grid gap-3 md:grid-cols-2">
+                    {issue.attachments.map((attachment) => (
+                      <div
+                        key={attachment._id}
+                        className="rounded-xl border border-white/10 bg-white/[0.03] p-3 transition hover:bg-white/[0.06]"
+                      >
+                        <div className="flex items-start gap-3">
+                          <a
+                            href={getAttachmentUrl(attachment.url)}
+                            target="_blank"
+                            rel="noreferrer"
+                            className="flex min-w-0 flex-1 items-start gap-3"
+                          >
+                            <div className="rounded-lg border border-white/10 bg-[#0d1015] p-2 text-white/70">
+                              {isImageAttachment(attachment) ? <IoImage size={16} /> : <IoDocumentText size={16} />}
+                            </div>
+                            <div className="min-w-0 flex-1">
+                              <p className="truncate text-sm font-semibold text-white">{attachment.name}</p>
+                              <p className="mt-1 text-xs text-white/45">
+                                {formatFileSize(attachment.size)} • {formatDateTime(attachment.uploadedAt)}
+                              </p>
+                              <p className="mt-1 text-xs text-white/35">
+                                Uploaded by {attachment.uploadedBy?.username || 'Unknown'}
+                              </p>
+                            </div>
+                          </a>
+                          <button
+                            type="button"
+                            onClick={() => handleDeleteAttachment(attachment._id)}
+                            disabled={busyAction === `attachment-delete-${attachment._id}`}
+                            className="rounded-lg border border-red-500/20 bg-red-500/10 p-2 text-red-300 hover:bg-red-500/20 disabled:cursor-not-allowed disabled:opacity-60"
+                            title="Delete attachment"
+                          >
+                            <IoTrash size={14} />
+                          </button>
+                        </div>
                       </div>
-                    </div>
-                  ))}
-                </div>
-              ) : (
-                <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-white/40">
-                  No attachments yet.
-                </div>
-              )}
-            </section>
+                    ))}
+                  </div>
+                ) : (
+                  <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-white/40">
+                    No attachments yet.
+                  </div>
+                )}
+              </section>
 
-            <section className="ui-dark-surface ui-shadow flex min-h-0 flex-col overflow-hidden p-4">
-              <div className="mb-3 flex shrink-0 items-center justify-between gap-2">
-                <h2 className="text-sm font-semibold text-white">Comments</h2>
-                <span className="text-xs text-white/40">{sortedComments.length} comment{sortedComments.length === 1 ? '' : 's'}</span>
-              </div>
+              {/* ── Divider ─────────────────────────────────────────────────── */}
+              <div className="border-t border-white/[0.06]" />
 
-              <div className="shrink-0 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
-                <div>
-                  <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
+              {/* ── Comments ────────────────────────────────────────────────── */}
+              <section className="p-5">
+                <div className="mb-3 flex items-center justify-between gap-2">
+                  <SectionLabel>Comments</SectionLabel>
+                  <span className="text-xs text-white/30">
+                    {sortedComments.length} comment{sortedComments.length === 1 ? '' : 's'}
+                  </span>
+                </div>
+
+                {/* Comment composer */}
+                <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                  {/* <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
                     Commenting As
-                  </div>
-                  <div className="mb-3 rounded-xl border border-white/10 bg-[#0d1015] px-3 py-2 text-sm text-white/75">
+                  </div> */}
+                  {/* <div className="mb-3 rounded-xl border border-white/10 bg-[#0d1015] px-3 py-2 text-sm text-white/75">
                     {currentUser?.username || currentUser?.email || 'Signed-in user'}
-                  </div>
+                  </div> */}
                   <textarea
                     value={newComment}
                     onChange={(e) => setNewComment(e.target.value)}
@@ -679,182 +729,184 @@ const IssueDetail = () => {
                     </Button>
                   </div>
                 </div>
-              </div>
 
-              <div className="mt-3 min-h-0 flex-1 space-y-2.5 overflow-y-auto pr-1">
-                {sortedComments.length > 0 ? (
-                  sortedComments.map((comment) => {
-                    const isEditingComment =
-                      editingTarget.type === 'comment' && editingTarget.commentId === comment._id;
-                    const isReplying = replyDraft.commentId === comment._id;
+                {/* Comment list */}
+                <div className="space-y-2.5">
+                  {sortedComments.length > 0 ? (
+                    sortedComments.map((comment) => {
+                      const isEditingComment =
+                        editingTarget.type === 'comment' && editingTarget.commentId === comment._id;
+                      const isReplying = replyDraft.commentId === comment._id;
 
-                    return (
-                      <div key={comment._id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0 flex-1">
-                            <div className="flex flex-wrap items-center gap-2">
-                              <p className="text-sm font-semibold text-white">
-                                {comment.author?.username || 'Anonymous'}
-                              </p>
-                              <span className="text-xs text-white/40">{formatDateTime(comment.updatedAt || comment.createdAt)}</span>
-                              {comment.editHistory?.length > 0 && (
-                                <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/45">
-                                  Edited
-                                </span>
+                      return (
+                        <div key={comment._id} className="rounded-xl border border-white/10 bg-white/[0.03] p-3">
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0 flex-1">
+                              <div className="flex flex-wrap items-center gap-2">
+                                <p className="text-sm font-semibold text-white">
+                                  {comment.author?.username || 'Anonymous'}
+                                </p>
+                                <span className="text-xs text-white/40">{formatDateTime(comment.updatedAt || comment.createdAt)}</span>
+                                {comment.editHistory?.length > 0 && (
+                                  <span className="rounded-full border border-white/10 px-2 py-0.5 text-[10px] uppercase tracking-[0.14em] text-white/45">
+                                    Edited
+                                  </span>
+                                )}
+                              </div>
+
+                              {isEditingComment ? (
+                                <div className="mt-2">
+                                  <textarea
+                                    value={editingTarget.text}
+                                    onChange={(e) => setEditingTarget((current) => ({ ...current, text: e.target.value }))}
+                                    rows={3}
+                                    className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm text-white"
+                                  />
+                                  <div className="mt-2 flex gap-2">
+                                    <Button variant="primary" size="sm" onClick={handleSaveEditedComment}>
+                                      Save
+                                    </Button>
+                                    <Button variant="secondary" size="sm" onClick={resetInlineStates}>
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              ) : (
+                                <>
+                                  <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">
+                                    {renderTextWithMentions(comment.text)}
+                                  </p>
+                                  <HistoryBlock
+                                    item={comment}
+                                    historyKey={`comment-${comment._id}`}
+                                    expandedHistory={expandedHistory}
+                                    setExpandedHistory={setExpandedHistory}
+                                  />
+                                  <CommentActions
+                                    onReply={() => {
+                                      setEditingTarget({ type: '', commentId: '', replyId: '', text: '' });
+                                      setReplyDraft({ commentId: comment._id, text: '' });
+                                    }}
+                                    onEdit={() => {
+                                      setReplyDraft({ commentId: '', text: '' });
+                                      setEditingTarget({ type: 'comment', commentId: comment._id, replyId: '', text: comment.text });
+                                    }}
+                                    onDelete={() => handleDeleteCommentItem(comment._id)}
+                                    canManage={canManageComment(comment.author)}
+                                  />
+                                </>
+                              )}
+
+                              {isReplying && (
+                                <div className="mt-3 rounded-xl border border-white/10 bg-[#0d1015] p-3">
+                                  <textarea
+                                    value={replyDraft.text}
+                                    onChange={(e) => setReplyDraft({ commentId: comment._id, text: e.target.value })}
+                                    rows={2}
+                                    className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white"
+                                    placeholder="Write a reply and use @username if needed..."
+                                  />
+                                  <div className="mt-2 flex gap-2">
+                                    <Button
+                                      variant="primary"
+                                      size="sm"
+                                      onClick={() => handleReply(comment._id)}
+                                      disabled={busyAction === `reply-${comment._id}` || !replyDraft.text.trim()}
+                                    >
+                                      {busyAction === `reply-${comment._id}` ? 'Replying...' : 'Reply'}
+                                    </Button>
+                                    <Button type="button" variant="secondary" size="sm" onClick={resetInlineStates}>
+                                      Cancel
+                                    </Button>
+                                  </div>
+                                </div>
+                              )}
+
+                              {comment.replies?.length > 0 && (
+                                <div className="mt-3 space-y-2 border-l border-white/10 pl-4">
+                                  {comment.replies.map((reply) => {
+                                    const isEditingReply =
+                                      editingTarget.type === 'reply' &&
+                                      editingTarget.commentId === comment._id &&
+                                      editingTarget.replyId === reply._id;
+
+                                    return (
+                                      <div key={reply._id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
+                                        <div className="flex items-center gap-2 text-xs text-white/45">
+                                          <IoReturnDownBack size={12} />
+                                          <span>{reply.author?.username || 'Anonymous'}</span>
+                                          <span>{formatDateTime(reply.updatedAt || reply.createdAt)}</span>
+                                          {reply.editHistory?.length > 0 && <span>edited</span>}
+                                        </div>
+
+                                        {isEditingReply ? (
+                                          <div className="mt-2">
+                                            <textarea
+                                              value={editingTarget.text}
+                                              onChange={(e) =>
+                                                setEditingTarget((current) => ({ ...current, text: e.target.value }))
+                                              }
+                                              rows={2}
+                                              className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm text-white"
+                                            />
+                                            <div className="mt-2 flex gap-2">
+                                              <Button variant="primary" size="sm" onClick={handleSaveEditedComment}>
+                                                Save
+                                              </Button>
+                                              <Button type="button" variant="secondary" size="sm" onClick={resetInlineStates}>
+                                                Cancel
+                                              </Button>
+                                            </div>
+                                          </div>
+                                        ) : (
+                                          <>
+                                            <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">
+                                              {renderTextWithMentions(reply.text)}
+                                            </p>
+                                            <HistoryBlock
+                                              item={reply}
+                                              historyKey={`reply-${reply._id}`}
+                                              expandedHistory={expandedHistory}
+                                              setExpandedHistory={setExpandedHistory}
+                                            />
+                                            <CommentActions
+                                              showReply={false}
+                                              onReply={() => {}}
+                                              onEdit={() => {
+                                                setReplyDraft({ commentId: '', text: '' });
+                                                setEditingTarget({
+                                                  type: 'reply',
+                                                  commentId: comment._id,
+                                                  replyId: reply._id,
+                                                  text: reply.text,
+                                                });
+                                              }}
+                                              onDelete={() => handleDeleteCommentItem(comment._id, reply._id)}
+                                              canManage={canManageComment(reply.author)}
+                                            />
+                                          </>
+                                        )}
+                                      </div>
+                                    );
+                                  })}
+                                </div>
                               )}
                             </div>
-
-                            {isEditingComment ? (
-                              <div className="mt-2">
-                                <textarea
-                                  value={editingTarget.text}
-                                  onChange={(e) => setEditingTarget((current) => ({ ...current, text: e.target.value }))}
-                                  rows={3}
-                                  className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm text-white"
-                                />
-                                <div className="mt-2 flex gap-2">
-                                  <Button variant="primary" size="sm" onClick={handleSaveEditedComment}>
-                                    Save
-                                  </Button>
-                                  <Button variant="secondary" size="sm" onClick={resetInlineStates}>
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            ) : (
-                              <>
-                                <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">
-                                  {renderTextWithMentions(comment.text)}
-                                </p>
-                                <HistoryBlock
-                                  item={comment}
-                                  historyKey={`comment-${comment._id}`}
-                                  expandedHistory={expandedHistory}
-                                  setExpandedHistory={setExpandedHistory}
-                                />
-                                <CommentActions
-                                  onReply={() => {
-                                    setEditingTarget({ type: '', commentId: '', replyId: '', text: '' });
-                                    setReplyDraft({ commentId: comment._id, text: '' });
-                                  }}
-                                  onEdit={() => {
-                                    setReplyDraft({ commentId: '', text: '' });
-                                    setEditingTarget({ type: 'comment', commentId: comment._id, replyId: '', text: comment.text });
-                                  }}
-                                  onDelete={() => handleDeleteCommentItem(comment._id)}
-                                  canManage={canManageComment(comment.author)}
-                                />
-                              </>
-                            )}
-
-                            {isReplying && (
-                              <div className="mt-3 rounded-xl border border-white/10 bg-[#0d1015] p-3">
-                                <textarea
-                                  value={replyDraft.text}
-                                  onChange={(e) => setReplyDraft({ commentId: comment._id, text: e.target.value })}
-                                  rows={2}
-                                  className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white"
-                                  placeholder="Write a reply and use @username if needed..."
-                                />
-                                <div className="mt-2 flex gap-2">
-                                  <Button
-                                    variant="primary"
-                                    size="sm"
-                                    onClick={() => handleReply(comment._id)}
-                                    disabled={busyAction === `reply-${comment._id}` || !replyDraft.text.trim()}
-                                  >
-                                    {busyAction === `reply-${comment._id}` ? 'Replying...' : 'Reply'}
-                                  </Button>
-                                  <Button type="button" variant="secondary" size="sm" onClick={resetInlineStates}>
-                                    Cancel
-                                  </Button>
-                                </div>
-                              </div>
-                            )}
-
-                            {comment.replies?.length > 0 && (
-                              <div className="mt-3 space-y-2 border-l border-white/10 pl-4">
-                                {comment.replies.map((reply) => {
-                                  const isEditingReply =
-                                    editingTarget.type === 'reply' &&
-                                    editingTarget.commentId === comment._id &&
-                                    editingTarget.replyId === reply._id;
-
-                                  return (
-                                    <div key={reply._id} className="rounded-xl border border-white/10 bg-white/[0.02] p-3">
-                                      <div className="flex items-center gap-2 text-xs text-white/45">
-                                        <IoReturnDownBack size={12} />
-                                        <span>{reply.author?.username || 'Anonymous'}</span>
-                                        <span>{formatDateTime(reply.updatedAt || reply.createdAt)}</span>
-                                        {reply.editHistory?.length > 0 && <span>edited</span>}
-                                      </div>
-
-                                      {isEditingReply ? (
-                                        <div className="mt-2">
-                                          <textarea
-                                            value={editingTarget.text}
-                                            onChange={(e) =>
-                                              setEditingTarget((current) => ({ ...current, text: e.target.value }))
-                                            }
-                                            rows={2}
-                                            className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm text-white"
-                                          />
-                                          <div className="mt-2 flex gap-2">
-                                            <Button variant="primary" size="sm" onClick={handleSaveEditedComment}>
-                                              Save
-                                            </Button>
-                                            <Button type="button" variant="secondary" size="sm" onClick={resetInlineStates}>
-                                              Cancel
-                                            </Button>
-                                          </div>
-                                        </div>
-                                      ) : (
-                                        <>
-                                          <p className="mt-1.5 whitespace-pre-wrap text-sm leading-6 text-white/75">
-                                            {renderTextWithMentions(reply.text)}
-                                          </p>
-                                          <HistoryBlock
-                                            item={reply}
-                                            historyKey={`reply-${reply._id}`}
-                                            expandedHistory={expandedHistory}
-                                            setExpandedHistory={setExpandedHistory}
-                                          />
-                                          <CommentActions
-                                            showReply={false}
-                                            onReply={() => {}}
-                                            onEdit={() => {
-                                              setReplyDraft({ commentId: '', text: '' });
-                                              setEditingTarget({
-                                                type: 'reply',
-                                                commentId: comment._id,
-                                                replyId: reply._id,
-                                                text: reply.text,
-                                              });
-                                            }}
-                                            onDelete={() => handleDeleteCommentItem(comment._id, reply._id)}
-                                            canManage={canManageComment(reply.author)}
-                                          />
-                                        </>
-                                      )}
-                                    </div>
-                                  );
-                                })}
-                              </div>
-                            )}
                           </div>
                         </div>
-                      </div>
-                    );
-                  })
-                ) : (
-                  <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-white/40">
-                    No comments yet. Add the first update.
-                  </div>
-                )}
-              </div>
-            </section>
+                      );
+                    })
+                  ) : (
+                    <div className="rounded-xl border border-dashed border-white/10 bg-white/[0.02] px-4 py-6 text-center text-sm text-white/40">
+                      No comments yet. Add the first update.
+                    </div>
+                  )}
+                </div>
+              </section>
+            </div>
           </div>
 
+          {/* ── RIGHT: Details sidebar ───────────────────────────────────────── */}
           <div className="min-h-0 overflow-hidden">
             <section className="ui-dark-surface ui-shadow flex h-full flex-col overflow-hidden p-4">
               <div className="mb-3 shrink-0">
@@ -916,7 +968,7 @@ const IssueDetail = () => {
                   )}
                 </DetailRow>
 
-                <DetailRow label="Assignees">
+                <DetailRow label="Assignees" wrap>
                   {isEditing ? (
                     <MultiUserChecklist
                       users={users}
@@ -925,13 +977,11 @@ const IssueDetail = () => {
                       emptyLabel="No users available"
                     />
                   ) : (
-                    <span className="block truncate text-sm font-medium text-white/80">
-                      {buildPeopleLabel(currentAssignees, 'No assignees')}
-                    </span>
+                    <UserPills users={currentAssignees} emptyLabel="No assignees" />
                   )}
                 </DetailRow>
 
-                <DetailRow label="Reviewers">
+                <DetailRow label="Reviewers" wrap>
                   {isEditing ? (
                     <MultiUserChecklist
                       users={users}
@@ -940,9 +990,7 @@ const IssueDetail = () => {
                       emptyLabel="No users available"
                     />
                   ) : (
-                    <span className="block truncate text-sm font-medium text-white/80">
-                      {buildPeopleLabel(currentReviewers, 'No reviewers')}
-                    </span>
+                    <UserPills users={currentReviewers} emptyLabel="No reviewers" />
                   )}
                 </DetailRow>
 
@@ -967,10 +1015,6 @@ const IssueDetail = () => {
 
                 <DetailRow label="Project">
                   <span className="block truncate text-sm font-medium text-white/80">{issue.project?.name || 'No project'}</span>
-                </DetailRow>
-
-                <DetailRow label="Workflow">
-                  <span className="block truncate text-sm font-medium text-white/80">{issue.project?.workflow?.name || 'No workflow'}</span>
                 </DetailRow>
 
                 <DetailRow label="Created">
