@@ -2,6 +2,7 @@ import React, { Suspense, lazy } from 'react';
 import { BrowserRouter as Router, Navigate, Outlet, Route, Routes } from 'react-router-dom';
 import { AuthProvider, getDefaultRouteForUser, useAuth } from './context/AuthContext';
 import { NotificationProvider } from './context/NotificationContext';
+import { ThemeProvider } from './context/ThemeContext';
 
 const LandingPage = lazy(() => import('./pages/LandingPage'));
 const Dashboard = lazy(() => import('./pages/admin/Dashboard'));
@@ -11,11 +12,9 @@ const Projects = lazy(() => import('./pages/admin/Projects'));
 const ProjectDetail = lazy(() => import('./pages/admin/ProjectDetail'));
 const Members = lazy(() => import('./pages/admin/Members'));
 const WorkflowEditor = lazy(() => import('./pages/admin/WorkflowEditor'));
-const Reports = lazy(() => import('./pages/admin/Reports'));
-const Search = lazy(() => import('./pages/admin/Search'));
 
 const LoadingFallback = () => (
-  <div className="flex min-h-screen items-center justify-center bg-[#050608]">
+  <div className="ui-dark-page flex min-h-screen items-center justify-center">
     <div className="text-center">
       <div className="mx-auto mb-4 h-12 w-12 animate-spin rounded-full border-4 border-primary border-t-transparent" />
       <p className="text-white/65">Loading...</p>
@@ -74,8 +73,6 @@ const AppRoutes = () => {
           <Route element={<AdminOnlyRoute />}>
             <Route path="/admin/members" element={<Members />} />
             <Route path="/admin/workflows" element={<WorkflowEditor />} />
-            <Route path="/admin/reports" element={<Reports />} />
-            <Route path="/admin/search" element={<Search />} />
           </Route>
         </Route>
 
@@ -94,13 +91,15 @@ const AppRoutes = () => {
 
 function App() {
   return (
-    <AuthProvider>
-      <NotificationProvider>
-        <Router>
-          <AppRoutes />
-        </Router>
-      </NotificationProvider>
-    </AuthProvider>
+    <ThemeProvider>
+      <AuthProvider>
+        <NotificationProvider>
+          <Router>
+            <AppRoutes />
+          </Router>
+        </NotificationProvider>
+      </AuthProvider>
+    </ThemeProvider>
   );
 }
 

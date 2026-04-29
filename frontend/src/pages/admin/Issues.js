@@ -23,7 +23,6 @@ const emptyIssueForm = {
   priority: 'Medium',
   assignees: [],
   reviewAssignees: [],
-  reporter: '',
   project: '',
   status: 'To Do',
 };
@@ -108,7 +107,7 @@ const Issues = () => {
         getIssues(),
         getProjects(),
         isAdmin ? getUsers() : Promise.resolve([]),
-        getGlobalStates(),
+        isAdmin ? getGlobalStates() : Promise.resolve([]),
       ]);
       setIssues(issuesData || []);
       setProjects(projectsData || []);
@@ -146,7 +145,6 @@ const Issues = () => {
         priority: issueForm.priority,
         assignees: issueForm.assignees,
         reviewAssignees: issueForm.reviewAssignees,
-        reporter: issueForm.reporter || undefined,
         project: issueForm.project,
       });
       resetForm();
@@ -170,7 +168,6 @@ const Issues = () => {
         status: issueForm.status,
         assignees: issueForm.assignees,
         reviewAssignees: issueForm.reviewAssignees,
-        reporter: issueForm.reporter || undefined,
       });
       resetForm();
       setIsEditModalOpen(false);
@@ -191,7 +188,6 @@ const Issues = () => {
       status: issue.status,
       assignees: uniqueUsers(issue.assignees).map((entry) => entry._id),
       reviewAssignees: uniqueUsers(issue.reviewAssignees).map((entry) => entry._id),
-      reporter: issue.reporter?._id || '',
       project: issue.project?._id || '',
     });
     setIsEditModalOpen(true);
@@ -225,14 +221,6 @@ const Issues = () => {
     High: 'text-orange-600',
     Critical: 'text-red-600',
   };
-
-  const filterTabs = [
-    { key: 'All', label: 'All' },
-    { key: 'Bug', label: 'Bug' },
-    { key: 'Critical', label: 'Critical' },
-    { key: 'My Issues', label: 'My Items' },
-    { key: 'In Progress', label: 'In Progress' },
-  ];
 
   const filteredIssues = issues.filter((issue) => {
     const assigneeIds = uniqueUsers(issue.assignees).map((entry) => entry._id);
@@ -374,39 +362,22 @@ const Issues = () => {
           />
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
+      {isEdit && (
         <div>
-          <label className="mb-2 block text-sm font-semibold text-dark">Reporter</label>
+          <label className="mb-2 block text-sm font-semibold text-dark">Status</label>
           <select
-            value={issueForm.reporter}
-            onChange={(e) => setIssueForm({ ...issueForm, reporter: e.target.value })}
+            value={issueForm.status}
+            onChange={(e) => setIssueForm({ ...issueForm, status: e.target.value })}
             className="w-full"
           >
-            <option value="">-- Select reporter --</option>
-            {users.map((entry) => (
-              <option key={entry._id} value={entry._id}>
-                {entry.username}
+            {getWorkflowStatusOptionsForProject(issueForm.project).map((status) => (
+              <option key={status} value={status}>
+                {status}
               </option>
             ))}
           </select>
         </div>
-        {isEdit && (
-          <div>
-            <label className="mb-2 block text-sm font-semibold text-dark">Status</label>
-            <select
-              value={issueForm.status}
-              onChange={(e) => setIssueForm({ ...issueForm, status: e.target.value })}
-              className="w-full"
-            >
-              {getWorkflowStatusOptionsForProject(issueForm.project).map((status) => (
-                <option key={status} value={status}>
-                  {status}
-                </option>
-              ))}
-            </select>
-          </div>
-        )}
-      </div>
+      )}
       <div className="flex gap-2 pt-2">
         <Button variant="primary" type="submit">
           {isEdit ? 'Update Issue' : 'Create Issue'}
@@ -420,7 +391,7 @@ const Issues = () => {
 
   return (
     <AdminLayout>
-      <div className="-mx-3 -my-3 min-h-[calc(100vh-120px)] bg-gradient-to-b from-[#0b0d10] to-[#07080a] px-3 py-4 text-white md:-mx-5 md:px-6 md:py-6">
+      <div className="-mx-3 -my-3 min-h-[calc(100vh-120px)] ui-dark-page px-3 py-4 text-white md:-mx-5 md:px-6 md:py-6">
         <Breadcrumb
           items={[
             { label: 'Home', href: '/admin' },

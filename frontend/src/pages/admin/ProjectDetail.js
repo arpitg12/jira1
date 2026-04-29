@@ -23,7 +23,6 @@ const emptyIssueForm = {
   status: 'To Do',
   assignees: [],
   reviewAssignees: [],
-  reporter: '',
 };
 
 const uniqueUsers = (userList) => {
@@ -147,7 +146,6 @@ const ProjectDetail = () => {
         status: issueForm.status,
         assignees: issueForm.assignees,
         reviewAssignees: issueForm.reviewAssignees,
-        reporter: issueForm.reporter || undefined,
         project: id,
       });
       resetIssueForm();
@@ -172,7 +170,6 @@ const ProjectDetail = () => {
         status: issueForm.status,
         assignees: issueForm.assignees,
         reviewAssignees: issueForm.reviewAssignees,
-        reporter: issueForm.reporter || undefined,
       });
       resetIssueForm();
       setIsEditModalOpen(false);
@@ -205,7 +202,6 @@ const ProjectDetail = () => {
       status: issue.status,
       assignees: uniqueUsers(issue.assignees).map((entry) => entry._id),
       reviewAssignees: uniqueUsers(issue.reviewAssignees).map((entry) => entry._id),
-      reporter: issue.reporter?._id || '',
     });
     setIsEditModalOpen(true);
   };
@@ -284,36 +280,19 @@ const ProjectDetail = () => {
           </select>
         </div>
       </div>
-      <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-dark">Status</label>
-          <select
-            value={issueForm.status}
-            onChange={(e) => setIssueForm({ ...issueForm, status: e.target.value })}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
-          >
-            {resolvedStatusOptions.map((status) => (
-              <option key={status} value={status}>
-                {status}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="mb-2 block text-sm font-semibold text-dark">Reporter</label>
-          <select
-            value={issueForm.reporter}
-            onChange={(e) => setIssueForm({ ...issueForm, reporter: e.target.value })}
-            className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
-          >
-            <option value="">-- Select reporter --</option>
-            {users.map((member) => (
-              <option key={member._id} value={member._id}>
-                {member.username}
-              </option>
-            ))}
-          </select>
-        </div>
+      <div>
+        <label className="mb-2 block text-sm font-semibold text-dark">Status</label>
+        <select
+          value={issueForm.status}
+          onChange={(e) => setIssueForm({ ...issueForm, status: e.target.value })}
+          className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
+        >
+          {resolvedStatusOptions.map((status) => (
+            <option key={status} value={status}>
+              {status}
+            </option>
+          ))}
+        </select>
       </div>
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>

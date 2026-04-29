@@ -99,36 +99,59 @@ const getTaskWatcherIds = (issue) =>
     ]),
   ]);
 
+const formatStatusLabel = (status = '') => String(status || '').trim().toLowerCase();
+
 const buildNotificationPayload = (eventType, issue, extras = {}) => {
-  const issueLabel = issue?.issueId ? `${issue.issueId}: ${issue.title}` : issue?.title || 'Task updated';
-  const projectName = issue?.project?.name ? ` in ${issue.project.name}` : '';
+  const issueTitle = issue?.title || 'this ticket';
+  const actorName = extras.actorName || 'A teammate';
+  const statusFrom = formatStatusLabel(extras.previousStatus);
+  const statusTo = formatStatusLabel(issue?.status);
 
   switch (eventType) {
     case 'TASK_CREATED':
       return {
-        title: EVENT_TITLES[eventType],
-        body: `${issueLabel} was created${projectName}.`,
+        title: `${actorName} created ${issueTitle}`,
+        body: `${actorName} created ${issueTitle}`,
+        actorName,
+        actionText: `created ${issueTitle}`,
       };
     case 'TASK_ASSIGNED':
       return {
-        title: EVENT_TITLES[eventType],
-        body: `${issueLabel} was assigned to you.`,
+        title: `${actorName} assigned ${issueTitle} to you`,
+        body: `${actorName} assigned ${issueTitle} to you`,
+        actorName,
+        actionText: `assigned ${issueTitle} to you`,
       };
     case 'TASK_COMMENTED':
       return {
-        title: EVENT_TITLES[eventType],
-        body: `A new comment was added on ${issueLabel}.`,
+        title: `${actorName} commented on ${issueTitle}`,
+        body: `${actorName} commented on ${issueTitle}`,
+        actorName,
+        actionText: `commented on ${issueTitle}`,
       };
     case 'TASK_MENTIONED':
       return {
-        title: EVENT_TITLES[eventType],
-        body: `${extras.actorName || 'A teammate'} mentioned you on ${issueLabel}.`,
+        title: `${actorName} mentioned you on ${issueTitle}`,
+        body: `${actorName} mentioned you on ${issueTitle}`,
+        actorName,
+        actionText: `mentioned you on ${issueTitle}`,
       };
     case 'TASK_UPDATED':
     default:
       return {
-        title: EVENT_TITLES[eventType],
-        body: `${issueLabel} was updated${projectName}.`,
+        title:
+          statusFrom && statusTo && statusFrom !== statusTo
+            ? `${actorName} changed the status from ${statusFrom} to ${statusTo} on ${issueTitle}`
+            : `${actorName} updated ${issueTitle}`,
+        body:
+          statusFrom && statusTo && statusFrom !== statusTo
+            ? `${actorName} changed the status from ${statusFrom} to ${statusTo} on ${issueTitle}`
+            : `${actorName} updated ${issueTitle}`,
+        actorName,
+        actionText:
+          statusFrom && statusTo && statusFrom !== statusTo
+            ? `changed the status from ${statusFrom} to ${statusTo} on ${issueTitle}`
+            : `updated ${issueTitle}`,
       };
   }
 };
@@ -180,18 +203,26 @@ const getIssueWithNotificationContext = async (issueOrId) => {
 };
 
 const deliverNotification = async (eventType, issue, audienceIds, extras = {}) => {
-  if (audienceIds.length === 0) {
+  const filteredAudienceIds = uniqueIds(audienceIds).filter(
+    (audienceId) => audienceId !== toId(extras.actorId)
+  );
+
+  if (filteredAudienceIds.length === 0) {
     return;
   }
 
   const users = await User.find({
-    _id: { $in: audienceIds },
+    _id: { $in: filteredAudienceIds },
     active: true,
   }).select('notificationSettings pushSubscriptions email username active');
 
   const payload = {
     ...buildNotificationPayload(eventType, issue, extras),
     url: `/admin/issue/${issue._id}`,
+    type: eventType,
+    issueTitle: issue?.title || '',
+    issueKey: issue?.issueId || '',
+    issueStatus: issue?.status || '',
   };
 
   const targetUsers = users.filter((user) => user?.notificationSettings?.[eventType] !== false);
@@ -203,8 +234,14 @@ const deliverNotification = async (eventType, issue, audienceIds, extras = {}) =
   await Notification.insertMany(
     targetUsers.map((user) => ({
       userId: user._id,
+      type: payload.type,
       title: payload.title,
       body: payload.body,
+      actorName: payload.actorName,
+      actionText: payload.actionText,
+      issueTitle: payload.issueTitle,
+      issueKey: payload.issueKey,
+      issueStatus: payload.issueStatus,
       url: payload.url,
       isRead: false,
     }))
@@ -213,7 +250,7 @@ const deliverNotification = async (eventType, issue, audienceIds, extras = {}) =
   await Promise.allSettled(targetUsers.map((user) => sendPushToUser(user, payload)));
 };
 
-export const notify = async (eventType, issueOrId) => {
+export const notify = async (eventType, issueOrId, extras = {}) => {
   const issue = await getIssueWithNotificationContext(issueOrId);
 
   if (!issue) {
@@ -225,7 +262,7 @@ export const notify = async (eventType, issueOrId) => {
   }
 
   const audienceIds = await resolveAudienceIds(eventType, issue);
-  await deliverNotification(eventType, issue, audienceIds);
+  await deliverNotification(eventType, issue, audienceIds, extras);
 };
 
 export const notifyMentionedUsers = async (issueOrId, mentionedUserIds, extras = {}) => {

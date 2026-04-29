@@ -15,6 +15,7 @@ import {
 } from 'react-icons/io5';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Button } from '../../components/common';
+import { MentionTextarea } from '../../components/common/MentionTextarea';
 import { useAuth } from '../../context/AuthContext';
 import {
   addAttachment,
@@ -56,13 +57,13 @@ const formatFileSize = (size = 0) => {
 const getStatusClasses = (status) => {
   switch (status) {
     case 'Done':
-      return 'bg-emerald-500/20 text-emerald-300 border border-emerald-500/20';
+      return 'issue-pill issue-pill--status-done';
     case 'In Progress':
-      return 'bg-blue-500/20 text-blue-300 border border-blue-500/20';
+      return 'issue-pill issue-pill--status-progress';
     case 'In Review':
-      return 'bg-violet-500/20 text-violet-300 border border-violet-500/20';
+      return 'issue-pill issue-pill--status-review';
     default:
-      return 'bg-white/10 text-white/75 border border-white/10';
+      return 'issue-pill issue-pill--status-default';
   }
 };
 
@@ -82,13 +83,13 @@ const getPriorityClasses = (priority) => {
 const getTypeClasses = (type) => {
   switch (type) {
     case 'Bug':
-      return 'bg-fuchsia-500/20 text-fuchsia-200 border border-fuchsia-500/20';
+      return 'issue-pill issue-pill--type-bug';
     case 'Feature':
-      return 'bg-emerald-500/20 text-emerald-200 border border-emerald-500/20';
+      return 'issue-pill issue-pill--type-feature';
     case 'Improvement':
-      return 'bg-amber-500/20 text-amber-200 border border-amber-500/20';
+      return 'issue-pill issue-pill--type-improvement';
     default:
-      return 'bg-cyan-500/20 text-cyan-200 border border-cyan-500/20';
+      return 'issue-pill issue-pill--type-task';
   }
 };
 
@@ -109,11 +110,7 @@ const createEditForm = (issueData) => ({
   issueType: issueData?.issueType || 'Task',
   assignees: normalizeUsers(issueData?.assignees).map((user) => user._id),
   reviewAssignees: normalizeUsers(issueData?.reviewAssignees).map((user) => user._id),
-  reporter: issueData?.reporter?._id || '',
 });
-
-const buildPeopleLabel = (users = [], emptyLabel = 'Not set') =>
-  users.length > 0 ? users.map((user) => user?.username).filter(Boolean).join(', ') : emptyLabel;
 
 const getInitials = (username = '') =>
   username.slice(0, 2).toUpperCase();
@@ -275,7 +272,9 @@ const IssueDetail = () => {
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState('');
   const [isEditing, setIsEditing] = useState(false);
+  const [isEditingDescription, setIsEditingDescription] = useState(false);
   const [isSaving, setIsSaving] = useState(false);
+  const [isSavingDescription, setIsSavingDescription] = useState(false);
   const [isUploading, setIsUploading] = useState(false);
   const [newComment, setNewComment] = useState('');
   const [editForm, setEditForm] = useState(createEditForm(null));
@@ -340,10 +339,10 @@ const IssueDetail = () => {
         issueType: editForm.issueType,
         assignees: editForm.assignees,
         reviewAssignees: editForm.reviewAssignees,
-        reporter: editForm.reporter || null,
       });
       applyIssueUpdate(response.issue || response);
       setIsEditing(false);
+      setIsEditingDescription(false);
       setError('');
     } catch (err) {
       setError(err.message || 'Failed to save issue changes');
@@ -361,6 +360,27 @@ const IssueDetail = () => {
     } catch (err) {
       setError(err.message || 'Failed to delete issue');
     }
+  };
+
+  const handleSaveDescription = async () => {
+    try {
+      setIsSavingDescription(true);
+      const response = await updateIssue(id, {
+        description: editForm.description,
+      });
+      applyIssueUpdate(response.issue || response);
+      setIsEditingDescription(false);
+      setError('');
+    } catch (err) {
+      setError(err.message || 'Failed to update description');
+    } finally {
+      setIsSavingDescription(false);
+    }
+  };
+
+  const handleCancelDescriptionEdit = () => {
+    setEditForm((current) => ({ ...current, description: issue?.description || '' }));
+    setIsEditingDescription(false);
   };
 
   const handleAddComment = async () => {
@@ -559,7 +579,10 @@ const IssueDetail = () => {
               <Button
                 variant="secondary"
                 size="sm"
-                onClick={() => setIsEditing(true)}
+                onClick={() => {
+                  setIsEditingDescription(false);
+                  setIsEditing(true);
+                }}
                 className="flex items-center gap-1.5"
               >
                 <IoPencil size={13} /> Edit
@@ -589,6 +612,38 @@ const IssueDetail = () => {
                 <div className="mb-3 flex items-center justify-between gap-3">
                   <SectionLabel>Description</SectionLabel>
                   <div className="flex flex-wrap items-center gap-2">
+                    {!isEditing && (
+                      isEditingDescription ? (
+                        <>
+                          <Button
+                            variant="primary"
+                            size="sm"
+                            onClick={handleSaveDescription}
+                            disabled={isSavingDescription}
+                            className="flex items-center gap-1.5"
+                          >
+                            <IoCheckmark size={14} />
+                            {isSavingDescription ? 'Saving...' : 'Save'}
+                          </Button>
+                          <Button
+                            variant="secondary"
+                            size="sm"
+                            onClick={handleCancelDescriptionEdit}
+                          >
+                            Cancel
+                          </Button>
+                        </>
+                      ) : (
+                        <Button
+                          variant="secondary"
+                          size="sm"
+                          onClick={() => setIsEditingDescription(true)}
+                          className="flex items-center gap-1.5"
+                        >
+                          <IoPencil size={13} /> Edit Description
+                        </Button>
+                      )
+                    )}
                     <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getTypeClasses(issue.issueType)}`}>
                       {issue.issueType}
                     </span>
@@ -598,11 +653,11 @@ const IssueDetail = () => {
                   </div>
                 </div>
 
-                {isEditing ? (
+                {isEditing || isEditingDescription ? (
                   <textarea
                     value={editForm.description}
                     onChange={(e) => setEditForm((current) => ({ ...current, description: e.target.value }))}
-                    rows={4}
+                    rows={6}
                     className="w-full resize-none rounded-xl border border-white/10 bg-white/5 p-3 text-sm leading-6 text-white"
                     placeholder="Add a clear description so the team knows what needs to happen."
                   />
@@ -706,9 +761,11 @@ const IssueDetail = () => {
                   {/* <div className="mb-3 rounded-xl border border-white/10 bg-[#0d1015] px-3 py-2 text-sm text-white/75">
                     {currentUser?.username || currentUser?.email || 'Signed-in user'}
                   </div> */}
-                  <textarea
+                  <MentionTextarea
                     value={newComment}
-                    onChange={(e) => setNewComment(e.target.value)}
+                    onChange={setNewComment}
+                    users={users}
+                    currentUserId={currentUser?._id}
                     rows={2}
                     className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm leading-6 text-white"
                     placeholder="Add context, share updates, or mention someone with @username..."
@@ -756,9 +813,11 @@ const IssueDetail = () => {
 
                               {isEditingComment ? (
                                 <div className="mt-2">
-                                  <textarea
+                                  <MentionTextarea
                                     value={editingTarget.text}
-                                    onChange={(e) => setEditingTarget((current) => ({ ...current, text: e.target.value }))}
+                                    onChange={(text) => setEditingTarget((current) => ({ ...current, text }))}
+                                    users={users}
+                                    currentUserId={currentUser?._id}
                                     rows={3}
                                     className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm text-white"
                                   />
@@ -799,9 +858,11 @@ const IssueDetail = () => {
 
                               {isReplying && (
                                 <div className="mt-3 rounded-xl border border-white/10 bg-[#0d1015] p-3">
-                                  <textarea
+                                  <MentionTextarea
                                     value={replyDraft.text}
-                                    onChange={(e) => setReplyDraft({ commentId: comment._id, text: e.target.value })}
+                                    onChange={(text) => setReplyDraft({ commentId: comment._id, text })}
+                                    users={users}
+                                    currentUserId={currentUser?._id}
                                     rows={2}
                                     className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white"
                                     placeholder="Write a reply and use @username if needed..."
@@ -841,11 +902,11 @@ const IssueDetail = () => {
 
                                         {isEditingReply ? (
                                           <div className="mt-2">
-                                            <textarea
+                                            <MentionTextarea
                                               value={editingTarget.text}
-                                              onChange={(e) =>
-                                                setEditingTarget((current) => ({ ...current, text: e.target.value }))
-                                              }
+                                              onChange={(text) => setEditingTarget((current) => ({ ...current, text }))}
+                                              users={users}
+                                              currentUserId={currentUser?._id}
                                               rows={2}
                                               className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm text-white"
                                             />
@@ -995,22 +1056,9 @@ const IssueDetail = () => {
                 </DetailRow>
 
                 <DetailRow label="Reporter">
-                  {isEditing ? (
-                    <select
-                      value={editForm.reporter}
-                      onChange={(e) => setEditForm((current) => ({ ...current, reporter: e.target.value }))}
-                      className="w-full min-w-[140px]"
-                    >
-                      <option value="">No reporter</option>
-                      {users.map((user) => (
-                        <option key={user._id} value={user._id}>{user.username}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className="block truncate text-sm font-medium text-white/80">
-                      {issue.reporter?.username || 'Not set'}
-                    </span>
-                  )}
+                  <span className="block truncate text-sm font-medium text-white/80">
+                    {issue.reporter?.username || 'Not set'}
+                  </span>
                 </DetailRow>
 
                 <DetailRow label="Project">

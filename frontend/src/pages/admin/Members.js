@@ -76,11 +76,16 @@ const Members = () => {
     }
   };
 
-  const handleDeleteUser = async (userId) => {
+  const handleDeleteUser = async (member) => {
+    if (member?.role === 'Admin') {
+      alert('Admin users cannot be deleted');
+      return;
+    }
+
     if (!window.confirm('Are you sure you want to delete this user?')) return;
     
     try {
-      await deleteUser(userId);
+      await deleteUser(member._id);
       await fetchMembers();
       alert('User deleted successfully!');
     } catch (err) {
@@ -188,8 +193,11 @@ const Members = () => {
                 </thead>
                 <tbody>
                   {members.length > 0 ? (
-                    members.map((member) => (
-                      <tr key={member._id} className="ui-dark-tr">
+                    members.map((member) => {
+                      const isAdminMember = member.role === 'Admin';
+
+                      return (
+                        <tr key={member._id} className="ui-dark-tr">
                         <td className="px-3 py-2 font-semibold text-white text-sm">{member.username}</td>
                         <td className="px-3 py-2 text-white/70 text-sm">{member.email}</td>
                         <td className="px-3 py-2">
@@ -206,17 +214,29 @@ const Members = () => {
                               <IoKey size={16} className="text-amber-300" />
                             </button>
                             <button 
-                              onClick={() => handleDeleteUser(member._id)}
-                              className="p-2 rounded-lg bg-white/5 border border-white/10 hover:bg-white/10"
-                              title="Delete"
+                              onClick={() => {
+                                if (isAdminMember) return;
+                                handleDeleteUser(member);
+                              }}
+                              className={`p-2 rounded-lg border border-white/10 ${
+                                isAdminMember
+                                  ? 'cursor-not-allowed bg-white/[0.03] opacity-50'
+                                  : 'bg-white/5 hover:bg-white/10'
+                              }`}
+                              title={isAdminMember ? 'Admin users cannot be deleted' : 'Delete'}
                               aria-label="Delete"
+                              disabled={isAdminMember}
                             >
                               <IoTrash size={16} className="text-red-300" />
                             </button>
                           </div>
+                          {isAdminMember && (
+                            <p className="mt-1 text-xs text-white/45">Admin users cannot be deleted.</p>
+                          )}
                         </td>
-                      </tr>
-                    ))
+                        </tr>
+                      );
+                    })
                   ) : (
                     <tr>
                       <td colSpan="4" className="px-3 py-10 text-center text-white/50 text-sm">

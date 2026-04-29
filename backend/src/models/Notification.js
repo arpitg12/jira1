@@ -17,6 +17,36 @@ const notificationSchema = new mongoose.Schema({
     required: true,
     trim: true,
   },
+  type: {
+    type: String,
+    default: 'TASK_UPDATED',
+    trim: true,
+  },
+  actorName: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  actionText: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  issueTitle: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  issueKey: {
+    type: String,
+    default: '',
+    trim: true,
+  },
+  issueStatus: {
+    type: String,
+    default: '',
+    trim: true,
+  },
   url: {
     type: String,
     required: true,

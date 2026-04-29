@@ -50,6 +50,7 @@ const sanitizeIssuePayload = (payload) =>
 
 const toId = (value) => String(value?._id || value || '');
 const uniqueUserIds = (values = []) => [...new Set(values.map((value) => toId(value)).filter(Boolean))];
+const getActorName = (user) => user?.username || user?.email || 'A teammate';
 
 const toArray = (value) => {
   if (Array.isArray(value)) return value.filter(Boolean);
@@ -143,7 +144,9 @@ const notifyMentionsFromText = async (issue, text, actor) => {
   }
 
   await notifyMentionedUsers(issue._id, mentionedUserIds, {
-    actorName: actor?.username || actor?.email || 'A teammate',
+    actorId: actor?._id,
+    actorName: getActorName(actor),
+    actionText: `mentioned you on ${issue?.title || 'this ticket'}`,
     text,
   });
 };
@@ -211,7 +214,6 @@ export const createIssue = async (req, res) => {
       issueType,
       priority,
       status,
-      reporter,
       project,
       customFields,
     } = req.body;
@@ -247,9 +249,9 @@ export const createIssue = async (req, res) => {
       priority: priority || 'Medium',
       status: resolvedStatus,
       ...issuePeople,
-      reporter: isAdmin(req.user) ? reporter || null : req.user._id,
+      reporter: req.user._id,
       watchers: buildIssueWatchers(
-        isAdmin(req.user) ? reporter || null : req.user._id,
+        req.user._id,
         issuePeople.assignees,
         issuePeople.reviewAssignees
       ),
@@ -259,7 +261,10 @@ export const createIssue = async (req, res) => {
 
     await issue.save();
     await issue.populate(issuePopulate);
-    await notify('TASK_CREATED', issue._id);
+    await notify('TASK_CREATED', issue._id, {
+      actorId: req.user._id,
+      actorName: getActorName(req.user),
+    });
     res.status(201).json({ message: 'Issue created successfully', issue });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -322,7 +327,6 @@ export const updateIssue = async (req, res) => {
       issueType,
       priority,
       status,
-      reporter,
       customFields,
     } = req.body;
 
@@ -345,6 +349,7 @@ export const updateIssue = async (req, res) => {
     }
 
     const previousAssigneeIds = uniqueUserIds(existingIssue.assignees || []);
+    const previousStatus = existingIssue.status;
 
     const updates = sanitizeIssuePayload({
       title,
@@ -352,7 +357,6 @@ export const updateIssue = async (req, res) => {
       issueType,
       priority,
       status,
-      reporter,
       customFields,
       ...normalizeIssuePeople(req.body),
     });
@@ -373,10 +377,17 @@ export const updateIssue = async (req, res) => {
       previousAssigneeIds.some((id) => !nextAssigneeIds.includes(id));
 
     if ((req.body.assignee !== undefined || req.body.assignees !== undefined) && assigneeChanged) {
-      await notify('TASK_ASSIGNED', existingIssue._id);
+      await notify('TASK_ASSIGNED', existingIssue._id, {
+        actorId: req.user._id,
+        actorName: getActorName(req.user),
+      });
     }
 
-    await notify('TASK_UPDATED', existingIssue._id);
+    await notify('TASK_UPDATED', existingIssue._id, {
+      actorId: req.user._id,
+      actorName: getActorName(req.user),
+      previousStatus,
+    });
     res.json({ message: 'Issue updated successfully', issue: existingIssue });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -434,7 +445,10 @@ export const addComment = async (req, res) => {
 
     await issue.save();
     await issue.populate(issuePopulate);
-    await notify('TASK_COMMENTED', issue._id);
+    await notify('TASK_COMMENTED', issue._id, {
+      actorId: req.user._id,
+      actorName: getActorName(req.user),
+    });
     await notifyMentionsFromText(issue, text.trim(), req.user);
 
     res.json({ message: 'Comment added successfully', issue });
@@ -556,7 +570,10 @@ export const addReply = async (req, res) => {
 
     await issue.save();
     await issue.populate(issuePopulate);
-    await notify('TASK_COMMENTED', issue._id);
+    await notify('TASK_COMMENTED', issue._id, {
+      actorId: req.user._id,
+      actorName: getActorName(req.user),
+    });
     await notifyMentionsFromText(issue, text.trim(), req.user);
 
     res.json({ message: 'Reply added successfully', issue });

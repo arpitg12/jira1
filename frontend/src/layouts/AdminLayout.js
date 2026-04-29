@@ -3,12 +3,10 @@ import { useNavigate } from 'react-router-dom';
 import { Sidebar, Header } from '../components/common';
 import { useAuth } from '../context/AuthContext';
 import {
-  IoBarChart,
   IoCheckmark,
   IoFolderOpen,
   IoHome,
   IoPeople,
-  IoSearch,
   IoSettings,
 } from 'react-icons/io5';
 
@@ -25,8 +23,6 @@ const AdminLayout = ({ children }) => {
         { label: 'Projects', href: '/admin/projects', icon: <IoFolderOpen /> },
         { label: 'Members', href: '/admin/members', icon: <IoPeople /> },
         { label: 'Workflows', href: '/admin/workflows', icon: <IoSettings /> },
-        { label: 'Reports', href: '/admin/reports', icon: <IoBarChart /> },
-        { label: 'Search', href: '/admin/search', icon: <IoSearch /> },
       ]
     : [
         { label: 'Dashboard', href: '/admin/dashboard', icon: <IoHome /> },
@@ -40,7 +36,7 @@ const AdminLayout = ({ children }) => {
   };
 
   return (
-    <div className="flex min-h-screen bg-[#050608] text-white">
+    <div className="ui-dark-page flex min-h-screen text-white">
       <div className={`hidden shrink-0 md:block ${sidebarCollapsed ? 'w-[84px]' : 'w-[340px]'}`}>
         <Sidebar
           isOpen
@@ -61,7 +57,7 @@ const AdminLayout = ({ children }) => {
         />
       </div>
 
-      <div className="flex min-w-0 flex-1 flex-col overflow-hidden bg-[#050608]">
+      <div className="flex min-w-0 flex-1 flex-col overflow-hidden">
         <Header
           toggleSidebar={() => setSidebarOpen((value) => !value)}
           isAdmin={isAdmin}
@@ -73,7 +69,7 @@ const AdminLayout = ({ children }) => {
             role: user?.role || 'Member',
           }}
         />
-        <main className="flex-1 overflow-y-auto bg-[#050608] p-3 md:p-5">
+        <main className="flex-1 overflow-y-auto p-3 md:p-5">
           <div className="mx-auto max-w-7xl">{children}</div>
         </main>
       </div>

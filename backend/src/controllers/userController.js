@@ -191,10 +191,16 @@ export const updateUserPasswordByEmail = async (req, res) => {
 
 export const deleteUser = async (req, res) => {
   try {
-    const user = await User.findByIdAndDelete(req.params.id);
+    const user = await User.findById(req.params.id);
     if (!user) {
       return res.status(404).json({ error: 'User not found' });
     }
+
+    if (user.role === 'Admin') {
+      return res.status(403).json({ error: 'Admin users cannot be deleted' });
+    }
+
+    await user.deleteOne();
     res.json({ message: 'User deleted successfully' });
   } catch (error) {
     res.status(500).json({ error: error.message });

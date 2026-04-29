@@ -36,7 +36,7 @@ export const Sidebar = ({
             } h-full ${
               // Desktop should feel like a true column (no top/left/bottom gaps)
               'md:rounded-none md:border-r md:border-white/10'
-            } rounded-3xl bg-gradient-to-b from-[#0b0d10] to-[#07080a] text-white shadow-2xl border border-white/10 overflow-hidden transition-[width] duration-300`}
+            } ui-sidebar-panel rounded-3xl text-white shadow-2xl border border-white/10 overflow-hidden transition-[width] duration-300`}
           >
             <div className={`flex items-center justify-between ${collapsed ? 'px-3' : 'px-5'} py-4`}>
               <div className="flex items-center gap-2 min-w-0">
