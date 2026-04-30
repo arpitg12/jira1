@@ -27,10 +27,10 @@ export const Header = ({ toggleSidebar, user, isAdmin, onLogout }) => {
               >
                 <IoMenu size={20} />
               </button>
-              <div>
+              {/* <div>
                 <p className="text-sm font-semibold text-white">{isAdmin ? 'Workspace Control' : 'Workspace Board'}</p>
                 <p className="text-xs text-white/45">Track tickets, people, and updates in one place.</p>
-              </div>
+              </div> */}
             </div>
 
             <div className="flex items-center gap-1 md:gap-3">

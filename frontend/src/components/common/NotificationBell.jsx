@@ -122,14 +122,14 @@ export const NotificationBell = () => {
       </button>
 
       {isOpen && (
-        <div className="absolute right-0 z-50 mt-3 w-[380px] max-w-[calc(100vw-24px)] overflow-hidden rounded-2xl border border-white/10 bg-[#101318] shadow-2xl">
-          <div className="flex items-center justify-between border-b border-white/10 px-4 py-3">
+        <div className="fixed inset-x-3 top-[76px] z-50 overflow-hidden rounded-2xl border border-white/10 bg-[#101318] shadow-2xl sm:absolute sm:left-auto sm:right-0 sm:top-full sm:mt-3 sm:w-[380px] sm:max-w-[calc(100vw-24px)]">
+          <div className="flex flex-col gap-3 border-b border-white/10 px-4 py-3 sm:flex-row sm:items-center sm:justify-between">
             <div>
               <p className="text-sm font-semibold text-white">Notifications</p>
               <p className="text-xs text-white/45">{unreadNotifications.length} unread</p>
             </div>
 
-            <div className="flex items-center gap-2">
+            <div className="flex flex-wrap items-center justify-end gap-2 sm:flex-nowrap">
               <button
                 type="button"
                 onClick={() => refreshNotifications()}
@@ -150,7 +150,7 @@ export const NotificationBell = () => {
             </div>
           </div>
 
-          <div className="max-h-[420px] overflow-y-auto">
+          <div className="max-h-[calc(100vh-176px)] overflow-y-auto sm:max-h-[420px]">
             {isLoadingNotifications ? (
               <div className="px-4 py-6 text-center text-sm text-white/50">Loading notifications...</div>
             ) : notifications.length > 0 ? (
@@ -171,14 +171,16 @@ export const NotificationBell = () => {
                         {getInitials(notification.actorName || notification.title)}
                       </div>
                       <div className="min-w-0 flex-1">
-                        <div className="flex items-start justify-between gap-3">
+                        <div className="flex flex-col gap-1 sm:flex-row sm:items-start sm:justify-between sm:gap-3">
                           <p className="min-w-0 flex-1 text-sm font-semibold leading-5 text-white">
                             {getNotificationHeadline(notification)}
                           </p>
-                          <p className="shrink-0 text-xs text-white/40">{formatRelativeTime(notification.createdAt)}</p>
+                          <p className="shrink-0 text-left text-xs text-white/40 sm:text-right">
+                            {formatRelativeTime(notification.createdAt)}
+                          </p>
                         </div>
                         {issueMeta && (
-                          <p className="mt-1 text-xs text-white/45">{issueMeta}</p>
+                          <p className="mt-1 break-words text-xs text-white/45">{issueMeta}</p>
                         )}
                       </div>
                       {!notification.isRead && (

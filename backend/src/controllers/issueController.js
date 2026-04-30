@@ -1,5 +1,6 @@
 import fs from 'fs/promises';
 import path from 'path';
+import Counter from '../models/Counter.js';
 import Issue from '../models/Issue.js';
 import Project from '../models/Project.js';
 import User from '../models/User.js';
@@ -43,6 +44,8 @@ const workflowProjectPopulate = {
   ],
 };
 
+const ISSUE_COUNTER_KEY = 'issue-sequence';
+
 const uploadsRoot = path.resolve(env.uploadsDir, 'issues');
 
 const sanitizeIssuePayload = (payload) =>
@@ -66,7 +69,9 @@ const getAllowedWorkflowStatuses = (project) =>
     .map((state) => state.name);
 
 const getInitialWorkflowStatus = (project) =>
-  project?.workflow?.defaultState?.name || getAllowedWorkflowStatuses(project)[0] || 'To Do';
+  (project?.workflow?.defaultState?.isActive !== false && project?.workflow?.defaultState?.name) ||
+  getAllowedWorkflowStatuses(project)[0] ||
+  'To Do';
 
 const validateWorkflowStatus = (status, allowedStatuses) =>
   !status || allowedStatuses.length === 0 || allowedStatuses.includes(status);
@@ -76,6 +81,55 @@ const getProjectWithWorkflow = (projectId) =>
     workflowProjectPopulate,
     { path: 'visibleToUsers', select: 'username email role active' },
   ]);
+
+const getNextIssueSequence = async () => {
+  const existingCounter = await Counter.findOneAndUpdate(
+    { key: ISSUE_COUNTER_KEY },
+    { $inc: { value: 1 } },
+    { new: true }
+  );
+
+  if (existingCounter) {
+    return existingCounter.value;
+  }
+
+  const currentIssueCount = await Issue.countDocuments();
+
+  try {
+    const createdCounter = await Counter.create({
+      key: ISSUE_COUNTER_KEY,
+      value: currentIssueCount + 1,
+    });
+
+    return createdCounter.value;
+  } catch (error) {
+    if (error?.code !== 11000) {
+      throw error;
+    }
+
+    const retriedCounter = await Counter.findOneAndUpdate(
+      { key: ISSUE_COUNTER_KEY },
+      { $inc: { value: 1 } },
+      { new: true }
+    );
+
+    return retriedCounter.value;
+  }
+};
+
+const getNextIssueIdentifier = async () => {
+  for (let attempt = 0; attempt < 5; attempt += 1) {
+    const nextSequence = await getNextIssueSequence();
+    const nextIssueId = `issue-${nextSequence}`;
+    const existingIssue = await Issue.exists({ issueId: nextIssueId });
+
+    if (!existingIssue) {
+      return nextIssueId;
+    }
+  }
+
+  throw new Error('Failed to generate a unique issue ID');
+};
 
 const findCommentById = (comments, commentId) => {
   for (const comment of comments) {
@@ -239,7 +293,7 @@ export const createIssue = async (req, res) => {
     }
 
     const issuePeople = normalizeIssuePeople(req.body);
-    const issueId = `ISSUE-${Date.now()}`;
+    const issueId = await getNextIssueIdentifier();
 
     const issue = new Issue({
       issueId,

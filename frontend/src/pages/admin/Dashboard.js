@@ -1,6 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import AdminLayout from '../../layouts/AdminLayout';
-import { Badge, Breadcrumb } from '../../components/common';
+import { Breadcrumb } from '../../components/common';
 import { IoArrowDown, IoArrowUp } from 'react-icons/io5';
 import { getIssues, getProjects, getUsers } from '../../services/api';
 import { useAuth } from '../../context/AuthContext';
@@ -101,25 +101,6 @@ const Dashboard = () => {
         },
       ];
 
-  const recentIssues = [...issues]
-    .sort((left, right) => new Date(right.updatedAt) - new Date(left.updatedAt))
-    .slice(0, 6);
-
-  const statusColors = {
-    'To Do': 'primary',
-    'In Progress': 'info',
-    'In Review': 'warning',
-    Review: 'warning',
-    Done: 'success',
-  };
-
-  const priorityColors = {
-    Critical: 'danger',
-    High: 'danger',
-    Medium: 'warning',
-    Low: 'info',
-  };
-
   return (
     <AdminLayout>
       <div className="-mx-3 -my-3 min-h-[calc(100vh-120px)] ui-dark-page px-3 py-4 md:-mx-5 md:px-6 md:py-6">
@@ -216,50 +197,6 @@ const Dashboard = () => {
               </div>
             </div>
 
-            <div className="ui-dark-surface ui-shadow p-3">
-              <div className="mb-2 flex items-center justify-between">
-                <h2 className="text-sm font-semibold text-white/90">Recent Issues</h2>
-                <span className="text-xs text-white/45">{recentIssues.length} visible</span>
-              </div>
-              <div className="overflow-x-auto rounded-xl border border-white/10 bg-white/5">
-                <table className="ui-dark-table">
-                  <thead className="ui-dark-thead">
-                    <tr>
-                      <th className="px-3 py-2 text-left font-semibold">ID</th>
-                      <th className="px-3 py-2 text-left font-semibold">Title</th>
-                      <th className="px-3 py-2 text-left font-semibold">Status</th>
-                      <th className="px-3 py-2 text-left font-semibold">Priority</th>
-                    </tr>
-                  </thead>
-                  <tbody className="text-sm">
-                    {recentIssues.length > 0 ? (
-                      recentIssues.map((issue) => (
-                        <tr key={issue._id} className="ui-dark-tr">
-                          <td className="px-3 py-2 text-sm font-semibold text-white/80">{issue.issueId}</td>
-                          <td className="px-3 py-2 text-sm text-white/80">{issue.title}</td>
-                          <td className="px-3 py-2">
-                            <Badge size="sm" variant={statusColors[issue.status] || 'info'}>
-                              {issue.status}
-                            </Badge>
-                          </td>
-                          <td className="px-3 py-2">
-                            <Badge size="sm" variant={priorityColors[issue.priority] || 'info'}>
-                              {issue.priority}
-                            </Badge>
-                          </td>
-                        </tr>
-                      ))
-                    ) : (
-                      <tr>
-                        <td colSpan="4" className="px-3 py-10 text-center text-sm text-white/50">
-                          No issues available for this account yet.
-                        </td>
-                      </tr>
-                    )}
-                  </tbody>
-                </table>
-              </div>
-            </div>
           </>
         )}
       </div>

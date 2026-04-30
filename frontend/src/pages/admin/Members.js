@@ -230,9 +230,9 @@ const Members = () => {
                               <IoTrash size={16} className="text-red-300" />
                             </button>
                           </div>
-                          {isAdminMember && (
+                          {/* {isAdminMember && (
                             <p className="mt-1 text-xs text-white/45">Admin users cannot be deleted.</p>
-                          )}
+                          )} */}
                         </td>
                         </tr>
                       );
