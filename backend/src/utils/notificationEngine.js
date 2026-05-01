@@ -1,16 +1,7 @@
 import Issue from '../models/Issue.js';
 import Notification from '../models/Notification.js';
-import Project from '../models/Project.js';
 import User from '../models/User.js';
 import webpush, { isPushConfigured } from './pushConfig.js';
-
-const EVENT_TITLES = {
-  TASK_CREATED: 'Task created',
-  TASK_ASSIGNED: 'Task assigned',
-  TASK_COMMENTED: 'New task comment',
-  TASK_UPDATED: 'Task updated',
-  TASK_MENTIONED: 'You were mentioned',
-};
 
 const toId = (value) => String(value?._id || value || '');
 const uniqueIds = (values = []) => [...new Set(values.map((value) => toId(value)).filter(Boolean))];
@@ -47,59 +38,14 @@ const sendPushToUser = async (user, payload) => {
   );
 };
 
-const getFallbackOpenProjectUserIds = async (roles = []) => {
-  const filter = { active: true };
+const formatStatusLabel = (status = '') => String(status || '').trim().toLowerCase();
 
-  if (roles.length > 0) {
-    filter.role = { $in: roles };
-  }
-
-  const users = await User.find(filter).select('_id');
-  return users.map((user) => toId(user));
-};
-
-const getProjectAudienceGroups = async (project) => {
-  const managerIds = uniqueIds(project?.managers || []);
-  const memberIds = uniqueIds(project?.members || []);
-  const watcherIds = uniqueIds(project?.watchers || []);
-  const visibleUserIds = uniqueIds(project?.visibleToUsers || []);
-  const isOpenProject = visibleUserIds.length === 0;
-
-  return {
-    managers:
-      managerIds.length > 0
-        ? managerIds
-        : isOpenProject
-          ? await getFallbackOpenProjectUserIds(['Admin', 'Lead'])
-          : [],
-    members:
-      memberIds.length > 0
-        ? memberIds
-        : visibleUserIds.length > 0
-          ? visibleUserIds
-          : await getFallbackOpenProjectUserIds(),
-    watchers:
-      watcherIds.length > 0
-        ? watcherIds
-        : visibleUserIds.length > 0
-          ? visibleUserIds
-          : await getFallbackOpenProjectUserIds(),
-  };
-};
-
-const getTaskWatcherIds = (issue) =>
+const getIssueStakeholderIds = (issue) =>
   uniqueIds([
-    ...(issue?.watchers || []),
     ...(issue?.assignees || []),
     ...(issue?.reviewAssignees || []),
     issue?.reporter,
-    ...(issue?.comments || []).flatMap((comment) => [
-      comment?.author,
-      ...(comment?.replies || []).map((reply) => reply?.author),
-    ]),
   ]);
-
-const formatStatusLabel = (status = '') => String(status || '').trim().toLowerCase();
 
 const buildNotificationPayload = (eventType, issue, extras = {}) => {
   const issueTitle = issue?.title || 'this ticket';
@@ -117,10 +63,31 @@ const buildNotificationPayload = (eventType, issue, extras = {}) => {
       };
     case 'TASK_ASSIGNED':
       return {
-        title: `${actorName} assigned ${issueTitle} to you`,
-        body: `${actorName} assigned ${issueTitle} to you`,
+        title: `${actorName} assigned you ${issueTitle}`,
+        body: `${actorName} assigned you ${issueTitle}`,
         actorName,
-        actionText: `assigned ${issueTitle} to you`,
+        actionText: `assigned you ${issueTitle}`,
+      };
+    case 'TASK_UNASSIGNED':
+      return {
+        title: `${actorName} removed you from ${issueTitle}`,
+        body: `${actorName} removed you from ${issueTitle}`,
+        actorName,
+        actionText: `removed you from ${issueTitle}`,
+      };
+    case 'TASK_REVIEW_ASSIGNED':
+      return {
+        title: `${actorName} assigned you as reviewer on ${issueTitle}`,
+        body: `${actorName} assigned you as reviewer on ${issueTitle}`,
+        actorName,
+        actionText: `assigned you as reviewer on ${issueTitle}`,
+      };
+    case 'TASK_REVIEW_UNASSIGNED':
+      return {
+        title: `${actorName} removed you as reviewer from ${issueTitle}`,
+        body: `${actorName} removed you as reviewer from ${issueTitle}`,
+        actorName,
+        actionText: `removed you as reviewer from ${issueTitle}`,
       };
     case 'TASK_COMMENTED':
       return {
@@ -131,10 +98,17 @@ const buildNotificationPayload = (eventType, issue, extras = {}) => {
       };
     case 'TASK_MENTIONED':
       return {
-        title: `${actorName} mentioned you on ${issueTitle}`,
-        body: `${actorName} mentioned you on ${issueTitle}`,
+        title: `${actorName} mentioned you in ${issueTitle}`,
+        body: `${actorName} mentioned you in ${issueTitle}`,
         actorName,
-        actionText: `mentioned you on ${issueTitle}`,
+        actionText: `mentioned you in ${issueTitle}`,
+      };
+    case 'TASK_ATTACHMENT_ADDED':
+      return {
+        title: `${actorName} added an attachment to ${issueTitle}`,
+        body: `${actorName} added an attachment to ${issueTitle}`,
+        actorName,
+        actionText: `added an attachment to ${issueTitle}`,
       };
     case 'TASK_UPDATED':
     default:
@@ -156,19 +130,18 @@ const buildNotificationPayload = (eventType, issue, extras = {}) => {
   }
 };
 
-const resolveAudienceIds = async (eventType, issue) => {
-  const projectAudience = await getProjectAudienceGroups(issue?.project);
-  const taskWatcherIds = getTaskWatcherIds(issue);
-
+const resolveAudienceIds = (eventType, issue) => {
   switch (eventType) {
     case 'TASK_CREATED':
-      return uniqueIds([...projectAudience.managers, ...projectAudience.members]);
+      return uniqueIds([issue?.reporter]);
     case 'TASK_ASSIGNED':
       return uniqueIds(issue?.assignees || []);
+    case 'TASK_REVIEW_ASSIGNED':
+      return uniqueIds(issue?.reviewAssignees || []);
     case 'TASK_COMMENTED':
-      return uniqueIds([...taskWatcherIds, ...(issue?.assignees || [])]);
     case 'TASK_UPDATED':
-      return uniqueIds([...projectAudience.watchers, ...taskWatcherIds]);
+    case 'TASK_ATTACHMENT_ADDED':
+      return getIssueStakeholderIds(issue);
     default:
       return [];
   }
@@ -178,18 +151,6 @@ const issueNotificationPopulate = [
   { path: 'assignees', select: 'username email role active' },
   { path: 'reviewAssignees', select: 'username email role active' },
   { path: 'reporter', select: 'username email role active' },
-  { path: 'watchers', select: 'username email role active' },
-  { path: 'comments.author', select: 'username email role active' },
-  { path: 'comments.replies.author', select: 'username email role active' },
-  {
-    path: 'project',
-    populate: [
-      { path: 'visibleToUsers', select: 'username email role active' },
-      { path: 'managers', select: 'username email role active' },
-      { path: 'members', select: 'username email role active' },
-      { path: 'watchers', select: 'username email role active' },
-    ],
-  },
 ];
 
 const getIssueWithNotificationContext = async (issueOrId) => {
@@ -203,9 +164,8 @@ const getIssueWithNotificationContext = async (issueOrId) => {
 };
 
 const deliverNotification = async (eventType, issue, audienceIds, extras = {}) => {
-  const filteredAudienceIds = uniqueIds(audienceIds).filter(
-    (audienceId) => audienceId !== toId(extras.actorId)
-  );
+  const excludedIds = new Set(uniqueIds([extras.actorId, ...(extras.excludeUserIds || [])]));
+  const filteredAudienceIds = uniqueIds(audienceIds).filter((audienceId) => !excludedIds.has(audienceId));
 
   if (filteredAudienceIds.length === 0) {
     return;
@@ -257,11 +217,7 @@ export const notify = async (eventType, issueOrId, extras = {}) => {
     return;
   }
 
-  if (!issue.project) {
-    issue.project = await Project.findById(issue.project);
-  }
-
-  const audienceIds = await resolveAudienceIds(eventType, issue);
+  const audienceIds = extras.audienceIds || resolveAudienceIds(eventType, issue);
   await deliverNotification(eventType, issue, audienceIds, extras);
 };
 
@@ -270,10 +226,6 @@ export const notifyMentionedUsers = async (issueOrId, mentionedUserIds, extras =
 
   if (!issue) {
     return;
-  }
-
-  if (!issue.project) {
-    issue.project = await Project.findById(issue.project);
   }
 
   await deliverNotification('TASK_MENTIONED', issue, uniqueIds(mentionedUserIds), extras);

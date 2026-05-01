@@ -35,11 +35,27 @@ const notificationSettingsSchema = new mongoose.Schema(
       type: Boolean,
       default: true,
     },
+    TASK_UNASSIGNED: {
+      type: Boolean,
+      default: true,
+    },
+    TASK_REVIEW_ASSIGNED: {
+      type: Boolean,
+      default: true,
+    },
+    TASK_REVIEW_UNASSIGNED: {
+      type: Boolean,
+      default: true,
+    },
     TASK_COMMENTED: {
       type: Boolean,
       default: true,
     },
     TASK_MENTIONED: {
+      type: Boolean,
+      default: true,
+    },
+    TASK_ATTACHMENT_ADDED: {
       type: Boolean,
       default: true,
     },

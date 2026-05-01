@@ -12,7 +12,6 @@ const issuePopulate = [
   { path: 'assignees', select: 'username email role' },
   { path: 'reviewAssignees', select: 'username email role' },
   { path: 'reporter', select: 'username email role' },
-  { path: 'watchers', select: 'username email role' },
   { path: 'attachments.uploadedBy', select: 'username email role' },
   { path: 'comments.author', select: 'username email role' },
   { path: 'comments.editHistory.editedBy', select: 'username email role' },
@@ -31,7 +30,6 @@ const issuePopulate = [
       { path: 'visibleToUsers', select: 'username email role' },
       { path: 'managers', select: 'username email role' },
       { path: 'members', select: 'username email role' },
-      { path: 'watchers', select: 'username email role' },
     ],
   },
 ];
@@ -54,14 +52,13 @@ const sanitizeIssuePayload = (payload) =>
 const toId = (value) => String(value?._id || value || '');
 const uniqueUserIds = (values = []) => [...new Set(values.map((value) => toId(value)).filter(Boolean))];
 const getActorName = (user) => user?.username || user?.email || 'A teammate';
+const hasOwn = (object, key) => Object.prototype.hasOwnProperty.call(object || {}, key);
 
 const toArray = (value) => {
   if (Array.isArray(value)) return value.filter(Boolean);
   if (value === undefined || value === null || value === '') return [];
   return [value];
 };
-
-const buildIssueWatchers = (...valueGroups) => uniqueUserIds(valueGroups.flat());
 
 const getAllowedWorkflowStatuses = (project) =>
   (project?.workflow?.states || [])
@@ -160,6 +157,11 @@ const normalizeIssuePeople = (payload = {}) => ({
   reviewAssignees: uniqueUserIds(toArray(payload.reviewAssignees).concat(toArray(payload.reviewAssignee))),
 });
 
+const diffUserIds = (previousIds = [], nextIds = []) => ({
+  added: nextIds.filter((id) => !previousIds.includes(id)),
+  removed: previousIds.filter((id) => !nextIds.includes(id)),
+});
+
 const mentionPattern = /(^|\s)@([a-zA-Z0-9._-]+)/g;
 
 const extractMentionUsernames = (text = '') => {
@@ -190,9 +192,7 @@ const resolveMentionedUserIds = async (text, actorId) => {
   return uniqueUserIds(users.map((user) => user._id)).filter((id) => id !== String(actorId || ''));
 };
 
-const notifyMentionsFromText = async (issue, text, actor) => {
-  const mentionedUserIds = await resolveMentionedUserIds(text, actor?._id);
-
+const notifyMentions = async (issue, mentionedUserIds, actor) => {
   if (mentionedUserIds.length === 0) {
     return;
   }
@@ -200,8 +200,6 @@ const notifyMentionsFromText = async (issue, text, actor) => {
   await notifyMentionedUsers(issue._id, mentionedUserIds, {
     actorId: actor?._id,
     actorName: getActorName(actor),
-    actionText: `mentioned you on ${issue?.title || 'this ticket'}`,
-    text,
   });
 };
 
@@ -304,21 +302,35 @@ export const createIssue = async (req, res) => {
       status: resolvedStatus,
       ...issuePeople,
       reporter: req.user._id,
-      watchers: buildIssueWatchers(
-        req.user._id,
-        issuePeople.assignees,
-        issuePeople.reviewAssignees
-      ),
       project,
       customFields: customFields || {},
     });
 
     await issue.save();
     await issue.populate(issuePopulate);
+    const actorName = getActorName(req.user);
     await notify('TASK_CREATED', issue._id, {
       actorId: req.user._id,
-      actorName: getActorName(req.user),
+      actorName,
+      audienceIds: [issue.reporter],
     });
+
+    if (issuePeople.assignees.length > 0) {
+      await notify('TASK_ASSIGNED', issue._id, {
+        actorId: req.user._id,
+        actorName,
+        audienceIds: issuePeople.assignees,
+      });
+    }
+
+    if (issuePeople.reviewAssignees.length > 0) {
+      await notify('TASK_REVIEW_ASSIGNED', issue._id, {
+        actorId: req.user._id,
+        actorName,
+        audienceIds: issuePeople.reviewAssignees,
+      });
+    }
+
     res.status(201).json({ message: 'Issue created successfully', issue });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -403,7 +415,20 @@ export const updateIssue = async (req, res) => {
     }
 
     const previousAssigneeIds = uniqueUserIds(existingIssue.assignees || []);
+    const previousReviewAssigneeIds = uniqueUserIds(existingIssue.reviewAssignees || []);
     const previousStatus = existingIssue.status;
+    const actorName = getActorName(req.user);
+    const assigneeInputProvided = req.body.assignee !== undefined || req.body.assignees !== undefined;
+    const reviewAssigneeInputProvided =
+      req.body.reviewAssignee !== undefined || req.body.reviewAssignees !== undefined;
+    const hasMeaningfulFieldChange =
+      (title !== undefined && title !== existingIssue.title) ||
+      (description !== undefined && description !== existingIssue.description) ||
+      (issueType !== undefined && issueType !== existingIssue.issueType) ||
+      (priority !== undefined && priority !== existingIssue.priority) ||
+      (status !== undefined && status !== existingIssue.status) ||
+      (hasOwn(req.body, 'customFields') &&
+        JSON.stringify(customFields ?? null) !== JSON.stringify(existingIssue.customFields ?? null));
 
     const updates = sanitizeIssuePayload({
       title,
@@ -416,32 +441,68 @@ export const updateIssue = async (req, res) => {
     });
 
     Object.assign(existingIssue, updates);
-    existingIssue.watchers = buildIssueWatchers(
-      existingIssue.watchers || [],
-      existingIssue.assignees || [],
-      existingIssue.reviewAssignees || [],
-      existingIssue.reporter
-    );
     await existingIssue.save();
     await existingIssue.populate(issuePopulate);
 
     const nextAssigneeIds = uniqueUserIds(existingIssue.assignees || []);
-    const assigneeChanged =
-      previousAssigneeIds.length !== nextAssigneeIds.length ||
-      previousAssigneeIds.some((id) => !nextAssigneeIds.includes(id));
+    const nextReviewAssigneeIds = uniqueUserIds(existingIssue.reviewAssignees || []);
+    const assigneeDiff = diffUserIds(previousAssigneeIds, nextAssigneeIds);
+    const reviewAssigneeDiff = diffUserIds(previousReviewAssigneeIds, nextReviewAssigneeIds);
+    const assigneeChanged = assigneeDiff.added.length > 0 || assigneeDiff.removed.length > 0;
+    const reviewAssigneeChanged =
+      reviewAssigneeDiff.added.length > 0 || reviewAssigneeDiff.removed.length > 0;
 
-    if ((req.body.assignee !== undefined || req.body.assignees !== undefined) && assigneeChanged) {
+    if (assigneeInputProvided && assigneeDiff.added.length > 0) {
       await notify('TASK_ASSIGNED', existingIssue._id, {
         actorId: req.user._id,
-        actorName: getActorName(req.user),
+        actorName,
+        audienceIds: assigneeDiff.added,
       });
     }
 
-    await notify('TASK_UPDATED', existingIssue._id, {
-      actorId: req.user._id,
-      actorName: getActorName(req.user),
-      previousStatus,
-    });
+    if (assigneeInputProvided && assigneeDiff.removed.length > 0) {
+      await notify('TASK_UNASSIGNED', existingIssue._id, {
+        actorId: req.user._id,
+        actorName,
+        audienceIds: assigneeDiff.removed,
+      });
+    }
+
+    if (reviewAssigneeInputProvided && reviewAssigneeDiff.added.length > 0) {
+      await notify('TASK_REVIEW_ASSIGNED', existingIssue._id, {
+        actorId: req.user._id,
+        actorName,
+        audienceIds: reviewAssigneeDiff.added,
+      });
+    }
+
+    if (reviewAssigneeInputProvided && reviewAssigneeDiff.removed.length > 0) {
+      await notify('TASK_REVIEW_UNASSIGNED', existingIssue._id, {
+        actorId: req.user._id,
+        actorName,
+        audienceIds: reviewAssigneeDiff.removed,
+      });
+    }
+
+    if (hasMeaningfulFieldChange || (assigneeInputProvided && assigneeChanged) || (reviewAssigneeInputProvided && reviewAssigneeChanged)) {
+      const updateAudienceIds = uniqueUserIds([
+        ...nextAssigneeIds,
+        ...nextReviewAssigneeIds,
+        existingIssue.reporter,
+      ]).filter(
+        (id) =>
+          !assigneeDiff.added.includes(id) &&
+          !reviewAssigneeDiff.added.includes(id)
+      );
+
+      await notify('TASK_UPDATED', existingIssue._id, {
+        actorId: req.user._id,
+        actorName,
+        previousStatus,
+        audienceIds: updateAudienceIds,
+      });
+    }
+
     res.json({ message: 'Issue updated successfully', issue: existingIssue });
   } catch (error) {
     res.status(500).json({ error: error.message });
@@ -489,21 +550,16 @@ export const addComment = async (req, res) => {
       editHistory: [],
       replies: [],
     });
-    issue.watchers = buildIssueWatchers(
-      issue.watchers || [],
-      req.user._id,
-      issue.assignees || [],
-      issue.reviewAssignees || [],
-      issue.reporter
-    );
 
     await issue.save();
     await issue.populate(issuePopulate);
+    const mentionedUserIds = await resolveMentionedUserIds(text.trim(), req.user._id);
     await notify('TASK_COMMENTED', issue._id, {
       actorId: req.user._id,
       actorName: getActorName(req.user),
+      excludeUserIds: mentionedUserIds,
     });
-    await notifyMentionsFromText(issue, text.trim(), req.user);
+    await notifyMentions(issue, mentionedUserIds, req.user);
 
     res.json({ message: 'Comment added successfully', issue });
   } catch (error) {
@@ -547,7 +603,8 @@ export const updateComment = async (req, res) => {
 
     await issue.save();
     await issue.populate(issuePopulate);
-    await notifyMentionsFromText(issue, text.trim(), req.user);
+    const mentionedUserIds = await resolveMentionedUserIds(text.trim(), req.user._id);
+    await notifyMentions(issue, mentionedUserIds, req.user);
 
     res.json({ message: 'Comment updated successfully', issue });
   } catch (error) {
@@ -614,21 +671,16 @@ export const addReply = async (req, res) => {
       author: req.user._id,
       editHistory: [],
     });
-    issue.watchers = buildIssueWatchers(
-      issue.watchers || [],
-      req.user._id,
-      issue.assignees || [],
-      issue.reviewAssignees || [],
-      issue.reporter
-    );
 
     await issue.save();
     await issue.populate(issuePopulate);
+    const mentionedUserIds = await resolveMentionedUserIds(text.trim(), req.user._id);
     await notify('TASK_COMMENTED', issue._id, {
       actorId: req.user._id,
       actorName: getActorName(req.user),
+      excludeUserIds: mentionedUserIds,
     });
-    await notifyMentionsFromText(issue, text.trim(), req.user);
+    await notifyMentions(issue, mentionedUserIds, req.user);
 
     res.json({ message: 'Reply added successfully', issue });
   } catch (error) {
@@ -672,7 +724,8 @@ export const updateReply = async (req, res) => {
 
     await issue.save();
     await issue.populate(issuePopulate);
-    await notifyMentionsFromText(issue, text.trim(), req.user);
+    const mentionedUserIds = await resolveMentionedUserIds(text.trim(), req.user._id);
+    await notifyMentions(issue, mentionedUserIds, req.user);
 
     res.json({ message: 'Reply updated successfully', issue });
   } catch (error) {
@@ -747,6 +800,10 @@ export const addAttachment = async (req, res) => {
 
     await issue.save();
     await issue.populate(issuePopulate);
+    await notify('TASK_ATTACHMENT_ADDED', issue._id, {
+      actorId: req.user._id,
+      actorName: getActorName(req.user),
+    });
 
     res.json({ message: 'Attachment uploaded successfully', issue });
   } catch (error) {

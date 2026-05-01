@@ -75,12 +75,20 @@ export const MentionTextarea = ({
     const query = match[2] || '';
     const start = cursorPosition - query.length - 1;
 
-    setMentionState({
-      isOpen: true,
-      query,
-      start,
-      end: cursorPosition,
-      activeIndex: 0,
+    setMentionState((current) => {
+      const isSameMention =
+        current.isOpen &&
+        current.query === query &&
+        current.start === start &&
+        current.end === cursorPosition;
+
+      return {
+        isOpen: true,
+        query,
+        start,
+        end: cursorPosition,
+        activeIndex: isSameMention ? current.activeIndex : 0,
+      };
     });
   };
 

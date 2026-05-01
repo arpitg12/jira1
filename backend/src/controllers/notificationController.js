@@ -4,8 +4,12 @@ import User from '../models/User.js';
 const DEFAULT_SETTINGS = {
   TASK_CREATED: true,
   TASK_ASSIGNED: true,
+  TASK_UNASSIGNED: true,
+  TASK_REVIEW_ASSIGNED: true,
+  TASK_REVIEW_UNASSIGNED: true,
   TASK_COMMENTED: true,
   TASK_MENTIONED: true,
+  TASK_ATTACHMENT_ADDED: true,
   TASK_UPDATED: true,
 };
 
@@ -110,6 +114,18 @@ export const updateNotificationPreferences = async (req, res) => {
         incomingSettings.TASK_ASSIGNED === undefined
           ? DEFAULT_SETTINGS.TASK_ASSIGNED
           : Boolean(incomingSettings.TASK_ASSIGNED),
+      TASK_UNASSIGNED:
+        incomingSettings.TASK_UNASSIGNED === undefined
+          ? DEFAULT_SETTINGS.TASK_UNASSIGNED
+          : Boolean(incomingSettings.TASK_UNASSIGNED),
+      TASK_REVIEW_ASSIGNED:
+        incomingSettings.TASK_REVIEW_ASSIGNED === undefined
+          ? DEFAULT_SETTINGS.TASK_REVIEW_ASSIGNED
+          : Boolean(incomingSettings.TASK_REVIEW_ASSIGNED),
+      TASK_REVIEW_UNASSIGNED:
+        incomingSettings.TASK_REVIEW_UNASSIGNED === undefined
+          ? DEFAULT_SETTINGS.TASK_REVIEW_UNASSIGNED
+          : Boolean(incomingSettings.TASK_REVIEW_UNASSIGNED),
       TASK_COMMENTED:
         incomingSettings.TASK_COMMENTED === undefined
           ? DEFAULT_SETTINGS.TASK_COMMENTED
@@ -118,6 +134,10 @@ export const updateNotificationPreferences = async (req, res) => {
         incomingSettings.TASK_MENTIONED === undefined
           ? DEFAULT_SETTINGS.TASK_MENTIONED
           : Boolean(incomingSettings.TASK_MENTIONED),
+      TASK_ATTACHMENT_ADDED:
+        incomingSettings.TASK_ATTACHMENT_ADDED === undefined
+          ? DEFAULT_SETTINGS.TASK_ATTACHMENT_ADDED
+          : Boolean(incomingSettings.TASK_ATTACHMENT_ADDED),
       TASK_UPDATED:
         incomingSettings.TASK_UPDATED === undefined
           ? DEFAULT_SETTINGS.TASK_UPDATED
