@@ -172,9 +172,23 @@ const SectionLabel = ({ children }) => (
 );
 
 const DetailRow = ({ label, children, wrap = false }) => (
-  <div className={`flex gap-3 rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 ${wrap ? 'flex-col items-start' : 'items-center justify-between'}`}>
+  <div
+    className={`rounded-xl border border-white/10 bg-white/[0.03] px-3 py-2.5 ${
+      wrap
+        ? 'flex flex-col items-start gap-3'
+        : 'flex flex-col items-start gap-2 sm:flex-row sm:items-center sm:justify-between'
+    }`}
+  >
     <p className="shrink-0 text-xs font-semibold uppercase tracking-[0.16em] text-white/40">{label}</p>
-    <div className={wrap ? 'w-full' : 'min-w-0 text-right'}>{children}</div>
+    <div className={wrap ? 'w-full' : 'w-full sm:min-w-0 sm:text-right'}>{children}</div>
+  </div>
+);
+
+const OverviewStat = ({ label, value, hint = '', valueClassName = 'text-white' }) => (
+  <div className="rounded-2xl border border-white/10 bg-white/[0.04] px-3 py-3">
+    <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-white/35">{label}</p>
+    <div className={`mt-2 text-sm font-semibold ${valueClassName}`}>{value}</div>
+    {hint ? <p className="mt-1 text-xs text-white/40">{hint}</p> : null}
   </div>
 );
 
@@ -527,70 +541,93 @@ const IssueDetail = () => {
 
   return (
     <AdminLayout>
-      <div className="-mx-3 flex h-[calc(100vh-104px)] flex-col overflow-hidden ui-dark-page px-3 py-3 md:-mx-5 md:px-5 md:py-4">
+      <div className="-mx-3 min-h-[calc(100vh-104px)] ui-dark-page px-3 py-3 md:-mx-5 md:px-5 md:py-4">
 
         {/* ── Top bar ─────────────────────────────────────────────────────── */}
-        <div className="ui-dark-surface-strong ui-shadow mb-3 flex shrink-0 items-center gap-3 overflow-hidden px-4 py-2.5">
-          <button
-            type="button"
-            onClick={() => navigate(-1)}
-            className="inline-flex shrink-0 items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-white/75 transition hover:bg-white/10 hover:text-white"
-          >
-            <IoArrowBack size={15} /> Back
-          </button>
+        <div className="ui-dark-surface-strong ui-shadow mb-4 px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0">
+              <button
+                type="button"
+                onClick={() => navigate(-1)}
+                className="mb-3 inline-flex items-center gap-1.5 rounded-lg border border-white/10 bg-white/5 px-2.5 py-1.5 text-sm text-white/75 transition hover:bg-white/10 hover:text-white"
+              >
+                <IoArrowBack size={15} /> Back
+              </button>
 
-          {isEditing ? (
-            <input
-              type="text"
-              value={editForm.title}
-              onChange={(e) => setEditForm((current) => ({ ...current, title: e.target.value }))}
-              className="min-w-0 flex-1 border-0 bg-transparent p-0 text-lg font-bold text-white focus:ring-0"
-              placeholder="Issue title"
-            />
-          ) : (
-            <h1 className="min-w-0 flex-1 truncate text-lg font-bold tracking-tight text-white">{issue.title}</h1>
-          )}
+              <div className="flex flex-wrap items-center gap-2 text-xs text-white/45">
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">{issue.issueId}</span>
+                <span className="rounded-full border border-white/10 bg-white/5 px-2.5 py-1">
+                  {issue.project?.name || 'No project'}
+                </span>
+              </div>
 
-          <div className="flex shrink-0 items-center gap-2">
-            {isEditing ? (
-              <>
-                <Button
-                  variant="primary"
-                  size="sm"
-                  onClick={handleSaveIssue}
-                  disabled={isSaving || !editForm.title.trim()}
-                  className="flex items-center gap-1.5"
-                >
-                  <IoCheckmark size={14} />
-                  {isSaving ? 'Saving...' : 'Save'}
-                </Button>
+              {isEditing ? (
+                <input
+                  type="text"
+                  value={editForm.title}
+                  onChange={(e) => setEditForm((current) => ({ ...current, title: e.target.value }))}
+                  className="mt-3 w-full border-0 bg-transparent p-0 text-xl font-bold text-white focus:ring-0"
+                  placeholder="Issue title"
+                />
+              ) : (
+                <h1 className="mt-3 text-xl font-bold leading-tight tracking-tight text-white sm:text-2xl">
+                  {issue.title}
+                </h1>
+              )}
+
+              <p className="mt-2 max-w-2xl text-sm leading-6 text-white/55">
+                Review details, update ownership, and keep the conversation moving without fighting the layout.
+              </p>
+            </div>
+
+            <div className="flex w-full flex-wrap gap-2 lg:w-auto lg:justify-end">
+              {isEditing ? (
+                <>
+                  <Button
+                    variant="primary"
+                    size="sm"
+                    onClick={handleSaveIssue}
+                    disabled={isSaving || !editForm.title.trim()}
+                    className="flex flex-1 items-center justify-center gap-1.5 sm:flex-none"
+                  >
+                    <IoCheckmark size={14} />
+                    {isSaving ? 'Saving...' : 'Save'}
+                  </Button>
+                  <Button
+                    variant="secondary"
+                    size="sm"
+                    onClick={() => {
+                      setEditForm(createEditForm(issue));
+                      setIsEditing(false);
+                    }}
+                    className="flex-1 justify-center sm:flex-none"
+                  >
+                    Cancel
+                  </Button>
+                </>
+              ) : (
                 <Button
                   variant="secondary"
                   size="sm"
                   onClick={() => {
-                    setEditForm(createEditForm(issue));
-                    setIsEditing(false);
+                    setIsEditingDescription(false);
+                    setIsEditing(true);
                   }}
+                  className="flex flex-1 items-center justify-center gap-1.5 sm:flex-none"
                 >
-                  Cancel
+                  <IoPencil size={13} /> Edit
                 </Button>
-              </>
-            ) : (
+              )}
               <Button
-                variant="secondary"
+                variant="danger"
                 size="sm"
-                onClick={() => {
-                  setIsEditingDescription(false);
-                  setIsEditing(true);
-                }}
-                className="flex items-center gap-1.5"
+                onClick={handleDeleteIssue}
+                className="flex flex-1 items-center justify-center gap-1.5 sm:flex-none"
               >
-                <IoPencil size={13} /> Edit
+                <IoTrash size={13} /> Delete
               </Button>
-            )}
-            <Button variant="danger" size="sm" onClick={handleDeleteIssue} className="flex items-center gap-1.5">
-              <IoTrash size={13} /> Delete
-            </Button>
+            </div>
           </div>
         </div>
 
@@ -601,15 +638,15 @@ const IssueDetail = () => {
         )}
 
         {/* ── Main two-column layout ───────────────────────────────────────── */}
-        <div className="grid min-h-0 flex-1 gap-3 xl:grid-cols-[minmax(0,1.55fr)_320px]">
+        <div className="grid gap-4 xl:grid-cols-[minmax(0,1.5fr)_340px]">
 
           {/* ── LEFT: single unified card, fully scrollable ─────────────────── */}
-          <div className="min-h-0 overflow-y-auto">
-            <div className="ui-dark-surface ui-shadow overflow-hidden">
+          <div className="order-2 xl:order-1">
+            <div className="ui-dark-surface ui-shadow overflow-visible">
 
               {/* ── Description ─────────────────────────────────────────────── */}
               <section className="p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <SectionLabel>Description</SectionLabel>
                   <div className="flex flex-wrap items-center gap-2">
                     {!isEditing && (
@@ -675,7 +712,7 @@ const IssueDetail = () => {
 
               {/* ── Attachments ─────────────────────────────────────────────── */}
               <section className="p-5">
-                <div className="mb-3 flex items-center justify-between gap-3">
+                <div className="mb-3 flex flex-col gap-3 sm:flex-row sm:items-center sm:justify-between">
                   <div>
                     <SectionLabel>Attachments</SectionLabel>
                     <p className="mt-1 text-xs text-white/30">Images, logs, PDFs, screenshots</p>
@@ -746,7 +783,7 @@ const IssueDetail = () => {
 
               {/* ── Comments ────────────────────────────────────────────────── */}
               <section className="p-5">
-                <div className="mb-3 flex items-center justify-between gap-2">
+                <div className="mb-3 flex flex-col gap-2 sm:flex-row sm:items-center sm:justify-between">
                   <SectionLabel>Comments</SectionLabel>
                   <span className="text-xs text-white/30">
                     {sortedComments.length} comment{sortedComments.length === 1 ? '' : 's'}
@@ -754,7 +791,7 @@ const IssueDetail = () => {
                 </div>
 
                 {/* Comment composer */}
-                <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3">
+                <div className="mb-4 rounded-2xl border border-white/10 bg-white/[0.03] p-3 overflow-visible">
                   {/* <div className="mb-1.5 text-xs font-semibold uppercase tracking-[0.16em] text-white/40">
                     Commenting As
                   </div> */}
@@ -770,7 +807,7 @@ const IssueDetail = () => {
                     className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm leading-6 text-white"
                     placeholder="Add context, share updates, or mention someone with @username..."
                   />
-                  <div className="mt-1.5 flex justify-end gap-2">
+                  <div className="mt-1.5 flex flex-col-reverse gap-2 sm:flex-row sm:justify-end">
                     {newComment && (
                       <Button type="button" variant="secondary" size="sm" onClick={() => setNewComment('')}>
                         Clear
@@ -821,7 +858,7 @@ const IssueDetail = () => {
                                     rows={3}
                                     className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm text-white"
                                   />
-                                  <div className="mt-2 flex gap-2">
+                                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                                     <Button variant="primary" size="sm" onClick={handleSaveEditedComment}>
                                       Save
                                     </Button>
@@ -867,7 +904,7 @@ const IssueDetail = () => {
                                     className="w-full resize-none rounded-xl border border-white/10 bg-white/[0.03] p-3 text-sm text-white"
                                     placeholder="Write a reply and use @username if needed..."
                                   />
-                                  <div className="mt-2 flex gap-2">
+                                  <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                                     <Button
                                       variant="primary"
                                       size="sm"
@@ -884,7 +921,7 @@ const IssueDetail = () => {
                               )}
 
                               {comment.replies?.length > 0 && (
-                                <div className="mt-3 space-y-2 border-l border-white/10 pl-4">
+                                <div className="mt-3 space-y-2 border-l border-white/10 pl-3 sm:pl-4">
                                   {comment.replies.map((reply) => {
                                     const isEditingReply =
                                       editingTarget.type === 'reply' &&
@@ -910,7 +947,7 @@ const IssueDetail = () => {
                                               rows={2}
                                               className="w-full resize-none rounded-xl border border-white/10 bg-[#0d1015] p-3 text-sm text-white"
                                             />
-                                            <div className="mt-2 flex gap-2">
+                                            <div className="mt-2 flex flex-col gap-2 sm:flex-row">
                                               <Button variant="primary" size="sm" onClick={handleSaveEditedComment}>
                                                 Save
                                               </Button>
@@ -968,49 +1005,57 @@ const IssueDetail = () => {
           </div>
 
           {/* ── RIGHT: Details sidebar ───────────────────────────────────────── */}
-          <div className="min-h-0 overflow-hidden">
-            <section className="ui-dark-surface ui-shadow flex h-full flex-col overflow-hidden p-4">
+          <div className="order-1 xl:order-2 xl:sticky xl:top-4 xl:self-start">
+            <section className="ui-dark-surface ui-shadow p-4 sm:p-5 xl:max-h-[calc(100vh-136px)] xl:overflow-y-auto">
               <div className="mb-3 shrink-0">
-                <h2 className="text-sm font-semibold text-white">Details</h2>
+                <h2 className="text-sm font-semibold text-white">Overview</h2>
+                <p className="mt-1 text-xs text-white/40">Everything important at a glance.</p>
               </div>
 
-              <div className="min-h-0 flex-1 space-y-2 overflow-y-auto pr-1">
-                <DetailRow label="Status">
-                  {isEditing ? (
-                    <select
-                      value={editForm.status}
-                      onChange={(e) => setEditForm((current) => ({ ...current, status: e.target.value }))}
-                      className="w-full min-w-[140px]"
-                    >
-                      {workflowStatusOptions.map((status) => (
-                        <option key={status} value={status}>{status}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <span className={`rounded-full px-2.5 py-0.5 text-xs font-semibold ${getStatusClasses(issue.status)}`}>
-                      {issue.status}
-                    </span>
-                  )}
-                </DetailRow>
+              <div className="mb-4 grid grid-cols-2 gap-2">
+                <OverviewStat
+                  label="Status"
+                  value={
+                    isEditing ? (
+                      <select
+                        value={editForm.status}
+                        onChange={(e) => setEditForm((current) => ({ ...current, status: e.target.value }))}
+                        className="w-full min-w-0"
+                      >
+                        {workflowStatusOptions.map((status) => (
+                          <option key={status} value={status}>{status}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <span className={`inline-flex rounded-full px-2.5 py-1 text-xs font-semibold ${getStatusClasses(issue.status)}`}>
+                        {issue.status}
+                      </span>
+                    )
+                  }
+                />
+                <OverviewStat
+                  label="Priority"
+                  value={
+                    isEditing ? (
+                      <select
+                        value={editForm.priority}
+                        onChange={(e) => setEditForm((current) => ({ ...current, priority: e.target.value }))}
+                        className="w-full min-w-0"
+                      >
+                        {PRIORITY_OPTIONS.map((priority) => (
+                          <option key={priority} value={priority}>{priority}</option>
+                        ))}
+                      </select>
+                    ) : (
+                      <div className={`inline-flex items-center gap-1.5 ${getPriorityClasses(issue.priority)}`}>
+                        <IoFlag size={13} /> {issue.priority}
+                      </div>
+                    )
+                  }
+                />
+              </div>
 
-                <DetailRow label="Priority">
-                  {isEditing ? (
-                    <select
-                      value={editForm.priority}
-                      onChange={(e) => setEditForm((current) => ({ ...current, priority: e.target.value }))}
-                      className="w-full min-w-[140px]"
-                    >
-                      {PRIORITY_OPTIONS.map((priority) => (
-                        <option key={priority} value={priority}>{priority}</option>
-                      ))}
-                    </select>
-                  ) : (
-                    <div className={`inline-flex items-center gap-1.5 text-sm font-semibold ${getPriorityClasses(issue.priority)}`}>
-                      <IoFlag size={13} /> {issue.priority}
-                    </div>
-                  )}
-                </DetailRow>
-
+              <div className="space-y-2">
                 <DetailRow label="Type">
                   {isEditing ? (
                     <select

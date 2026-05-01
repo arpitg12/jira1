@@ -155,7 +155,7 @@ export const MentionTextarea = ({
   };
 
   return (
-    <div className="relative">
+    <div className="relative overflow-visible">
       <textarea
         ref={textareaRef}
         value={value}
@@ -174,7 +174,7 @@ export const MentionTextarea = ({
       />
 
       {mentionState.isOpen && suggestions.length > 0 && (
-        <div className="absolute left-0 right-0 top-full z-20 mt-2 overflow-hidden rounded-xl border border-white/10 bg-[#101318] shadow-2xl">
+        <div className="absolute left-0 right-0 top-full z-30 mt-2 max-h-72 overflow-y-auto overscroll-contain rounded-2xl border border-white/10 bg-[#101318] shadow-2xl">
           {suggestions.map((suggestion, index) => {
             const isActive = index === mentionState.activeIndex;
 
