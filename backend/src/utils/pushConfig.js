@@ -2,9 +2,9 @@ import 'dotenv/config';
 import webpush from 'web-push';
 import { env } from '../config/env.js';
 
-const vapidPublicKey = env.vapidPublicKey;
+const vapidPublicKey = env.vapidPublicKey;   
 const vapidPrivateKey = env.vapidPrivateKey;
-const vapidSubject = env.vapidSubject;
+const vapidSubject = env.vapidSubject;       
 
 const hasVapidKeys = Boolean(vapidPublicKey && vapidPrivateKey);
 

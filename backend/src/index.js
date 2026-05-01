@@ -25,16 +25,13 @@ connectDB()
 app.use(helmet());
 app.use(
   cors({
-    origin(origin, callback) {
-      if (!origin || env.corsOrigins.includes(origin)) {
-        return callback(null, true);
-      }
-
-      return callback(new Error('Origin is not allowed by CORS'));
-    },
+    origin: env.corsOrigins,
     credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
   })
 );
+
 app.use(express.json({ limit: env.bodyLimit }));
 app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.resolve(env.uploadsDir)));
