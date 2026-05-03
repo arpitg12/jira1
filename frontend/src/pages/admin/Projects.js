@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Breadcrumb, Button, Modal } from '../../components/common';
-import { IoAdd, IoOpen, IoPencil, IoTrash } from 'react-icons/io5';
+import { IoAdd, IoPencil, IoTrash } from 'react-icons/io5';
 import {
   createProject,
   deleteProject,
@@ -179,7 +179,19 @@ const Projects = () => {
           <div className="space-y-2">
             {projects.length > 0 ? (
               projects.map((project) => (
-                <div key={project._id} className="group relative ui-dark-surface ui-shadow p-3">
+                <div
+                  key={project._id}
+                  role="button"
+                  tabIndex={0}
+                  onClick={() => navigate(`/admin/projects/${project._id}`)}
+                  onKeyDown={(event) => {
+                    if (event.key === 'Enter' || event.key === ' ') {
+                      event.preventDefault();
+                      navigate(`/admin/projects/${project._id}`);
+                    }
+                  }}
+                  className="group relative cursor-pointer ui-dark-surface ui-shadow p-3 transition hover:border-white/20 hover:bg-white/[0.07]"
+                >
                   <div className="flex items-start justify-between gap-3 pr-20">
                     <div className="min-w-0 flex-1">
                       <h2 className="mb-1 text-base font-bold text-white">{project.name}</h2>
@@ -198,17 +210,11 @@ const Projects = () => {
                     </div>
                   </div>
 
-                  <div className="absolute right-2 top-2 flex items-center gap-1">
-                    <Button
-                      variant="primary"
-                      size="sm"
-                      title="View"
-                      aria-label="View"
-                      onClick={() => navigate(`/admin/projects/${project._id}`)}
-                      className="flex items-center gap-1 !px-2 !py-1"
-                    >
-                      <IoOpen size={14} />
-                    </Button>
+                  <div
+                    className="absolute right-2 top-2 flex items-center gap-1"
+                    onClick={(event) => event.stopPropagation()}
+                    onKeyDown={(event) => event.stopPropagation()}
+                  >
                     {isAdmin && (
                       <>
                         <Button

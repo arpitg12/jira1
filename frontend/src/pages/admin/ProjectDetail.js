@@ -1,6 +1,6 @@
 import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
-import { IoAdd, IoPencil, IoSearch, IoTrash } from 'react-icons/io5';
+import { IoAdd, IoClose, IoFilter, IoPencil, IoSearch, IoTrash } from 'react-icons/io5';
 import AdminLayout from '../../layouts/AdminLayout';
 import { Card, Breadcrumb, Button, Modal, SearchableUserMultiSelect } from '../../components/common';
 import {
@@ -53,6 +53,7 @@ const ProjectDetail = () => {
     priority: '',
     assignee: '',
   });
+  const [showFilters, setShowFilters] = useState(false);
   const [filteredIssues, setFilteredIssues] = useState([]);
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false);
   const [isEditModalOpen, setIsEditModalOpen] = useState(false);
@@ -190,6 +191,9 @@ const ProjectDetail = () => {
     setSearchTerm('');
     setFilters({ status: '', priority: '', assignee: '' });
   };
+
+  const activeFilterCount =
+    (searchTerm ? 1 : 0) + Object.values(filters).filter(Boolean).length;
 
   const statusOptions = project?.workflow?.states?.map((state) => state?.name).filter(Boolean) || [];
   const resolvedStatusOptions = statusOptions.length > 0 ? statusOptions : DEFAULT_STATUS_OPTIONS;
@@ -391,82 +395,146 @@ const ProjectDetail = () => {
         )}
 
         <Card className="mb-4">
-          <div className="space-y-3">
-            <div className="relative">
-              <IoSearch className="absolute left-2 top-2 text-gray-400" size={16} />
-              <input
-                type="text"
-                placeholder="Search by title, ID, or description..."
-                value={searchTerm}
-                onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full rounded border border-gray-300 py-2 pl-8 pr-3 text-sm outline-none focus:border-primary"
-              />
-            </div>
-
-            <div className="grid grid-cols-1 gap-2 md:grid-cols-5">
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-dark">Status</label>
-                <select
-                  value={filters.status}
-                  onChange={(e) => setFilters({ ...filters, status: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-primary"
-                >
-                  <option value="">All Status</option>
-                  {resolvedStatusOptions.map((status) => (
-                    <option key={status} value={status}>
-                      {status}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-dark">Priority</label>
-                <select
-                  value={filters.priority}
-                  onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-primary"
-                >
-                  <option value="">All Priority</option>
-                  {priorityOptions.map((priority) => (
-                    <option key={priority} value={priority}>
-                      {priority}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-dark">Assignee</label>
-                <select
-                  value={filters.assignee}
-                  onChange={(e) => setFilters({ ...filters, assignee: e.target.value })}
-                  className="w-full rounded border border-gray-300 px-2 py-1 text-xs outline-none focus:border-primary"
-                >
-                  <option value="">All Assignees</option>
-                  {users.map((member) => (
-                    <option key={member._id} value={member._id}>
-                      {member.username}
-                    </option>
-                  ))}
-                </select>
-              </div>
-
-              <div>
-                <label className="mb-1 block text-xs font-semibold text-dark">&nbsp;</label>
-                <Button variant="secondary" onClick={handleResetFilters} className="w-full py-1 text-xs">
-                  Reset
-                </Button>
-              </div>
-
-              <div className="flex items-end">
-                <span className="text-xs text-gray-600">
-                  <span className="font-semibold">{filteredIssues.length}</span> of{' '}
-                  <span className="font-semibold">{issues.length}</span>
+          <div className="flex flex-wrap items-center gap-2">
+            <button
+              type="button"
+              onClick={() => setShowFilters((current) => !current)}
+              className={`ml-auto flex items-center gap-1.5 rounded-xl border px-3 py-1.5 text-sm transition ${
+                showFilters || activeFilterCount > 0
+                  ? 'border-[#5b5dff]/50 bg-[#2a2cff]/25 text-white'
+                  : 'border-white/10 bg-white/5 text-white/70 hover:bg-white/10'
+              }`}
+            >
+              <IoFilter size={14} />
+              Filters
+              {activeFilterCount > 0 && (
+                <span className="flex h-4 w-4 items-center justify-center rounded-full bg-[#5b5dff] text-[10px] font-bold text-white">
+                  {activeFilterCount}
                 </span>
-              </div>
-            </div>
+              )}
+            </button>
           </div>
+
+          {showFilters && (
+            <div className="mt-4 rounded-2xl border border-white/10 bg-white/5 p-4">
+              <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-5">
+                <div className="relative xl:col-span-2">
+                  <IoSearch
+                    size={14}
+                    className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-white/40"
+                  />
+                  <input
+                    type="text"
+                    placeholder="Search by title, ID, or description..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full rounded-lg border border-white/10 bg-white/5 py-2 pl-8 pr-3 text-sm text-white placeholder-white/30 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                  />
+                  {searchTerm && (
+                    <button
+                      type="button"
+                      onClick={() => setSearchTerm('')}
+                      className="absolute right-2 top-1/2 -translate-y-1/2 text-white/40 hover:text-white/70"
+                    >
+                      <IoClose size={14} />
+                    </button>
+                  )}
+                </div>
+
+                <div>
+                  <select
+                    value={filters.status}
+                    onChange={(e) => setFilters({ ...filters, status: e.target.value })}
+                    className="w-full rounded-lg border border-white/10 bg-[#0e1015] py-2 px-3 text-sm text-white/80 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                  >
+                    <option value="">All Statuses</option>
+                    {resolvedStatusOptions.map((status) => (
+                      <option key={status} value={status}>
+                        {status}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <select
+                    value={filters.priority}
+                    onChange={(e) => setFilters({ ...filters, priority: e.target.value })}
+                    className="w-full rounded-lg border border-white/10 bg-[#0e1015] py-2 px-3 text-sm text-white/80 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                  >
+                    <option value="">All Priorities</option>
+                    {priorityOptions.map((priority) => (
+                      <option key={priority} value={priority}>
+                        {priority}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+
+                <div>
+                  <select
+                    value={filters.assignee}
+                    onChange={(e) => setFilters({ ...filters, assignee: e.target.value })}
+                    className="w-full rounded-lg border border-white/10 bg-[#0e1015] py-2 px-3 text-sm text-white/80 outline-none focus:border-[#5b5dff]/50 focus:ring-1 focus:ring-[#5b5dff]/30"
+                  >
+                    <option value="">All Assignees</option>
+                    {users.map((member) => (
+                      <option key={member._id} value={member._id}>
+                        {member.username}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              {activeFilterCount > 0 && (
+                <div className="mt-3 flex flex-wrap items-center gap-2">
+                  {searchTerm && (
+                    <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                      Search: <span className="font-medium text-white">"{searchTerm}"</span>
+                      <button type="button" onClick={() => setSearchTerm('')} className="ml-1 hover:text-white">
+                        <IoClose size={11} />
+                      </button>
+                    </span>
+                  )}
+                  {filters.status && (
+                    <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                      Status: <span className="font-medium text-white">{filters.status}</span>
+                      <button type="button" onClick={() => setFilters({ ...filters, status: '' })} className="ml-1 hover:text-white">
+                        <IoClose size={11} />
+                      </button>
+                    </span>
+                  )}
+                  {filters.priority && (
+                    <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                      Priority: <span className="font-medium text-white">{filters.priority}</span>
+                      <button type="button" onClick={() => setFilters({ ...filters, priority: '' })} className="ml-1 hover:text-white">
+                        <IoClose size={11} />
+                      </button>
+                    </span>
+                  )}
+                  {filters.assignee && (
+                    <span className="flex items-center gap-1 rounded-full border border-white/10 bg-white/5 px-2.5 py-1 text-xs text-white/70">
+                      Assignee:{' '}
+                      <span className="font-medium text-white">
+                        {users.find((member) => member._id === filters.assignee)?.username || filters.assignee}
+                      </span>
+                      <button type="button" onClick={() => setFilters({ ...filters, assignee: '' })} className="ml-1 hover:text-white">
+                        <IoClose size={11} />
+                      </button>
+                    </span>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleResetFilters}
+                    className="ml-auto text-xs text-white/40 hover:text-white/70 underline"
+                  >
+                    Clear all
+                  </button>
+                </div>
+              )}
+            </div>
+          )}
         </Card>
 
         <div className="ui-dark-surface ui-shadow p-3">
