@@ -7,13 +7,16 @@ import {
   IoFolderOpen,
   IoGitNetwork,
   IoLockClosed,
+  IoMoon,
   IoPulse,
   IoShieldCheckmark,
   IoSparkles,
+  IoSunny,
   IoTicket,
 } from 'react-icons/io5';
 import { Button, Modal } from '../components/common';
 import { getDefaultRouteForUser, useAuth } from '../context/AuthContext';
+import { useTheme } from '../context/ThemeContext';
 
 const featureCards = [
   {
@@ -54,6 +57,7 @@ const stats = [
 const LandingPage = () => {
   const navigate = useNavigate();
   const { login } = useAuth();
+  const { isLightMode, toggleTheme } = useTheme();
   const [isLoginOpen, setIsLoginOpen] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState('');
@@ -99,6 +103,15 @@ const LandingPage = () => {
               <p className="text-xs text-white/55">Delivery control for admins and focused execution for members.</p>
             </div>
             <div className="flex items-center gap-3">
+              <button
+                type="button"
+                onClick={toggleTheme}
+                className="rounded-full border border-white/10 bg-white/5 p-2.5 text-white/75 transition hover:bg-white/10 hover:text-white"
+                title={isLightMode ? 'Switch to dark mode' : 'Switch to light mode'}
+                aria-label={isLightMode ? 'Switch to dark mode' : 'Switch to light mode'}
+              >
+                {isLightMode ? <IoMoon size={18} /> : <IoSunny size={18} />}
+              </button>
               <Button variant="ghost" className="hidden md:inline-flex" onClick={() => setIsLoginOpen(true)}>
                 Member Login
               </Button>

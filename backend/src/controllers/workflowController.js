@@ -1,8 +1,20 @@
 import GlobalState from '../models/GlobalState.js';
 import Workflow from '../models/Workflow.js';
 
-const populateWorkflow = (query) =>
-  query.populate('states').populate('defaultState');
+const WORKFLOW_POPULATE = ['states', 'defaultState'];
+
+const populateWorkflow = async (target) => {
+  if (!target) {
+    return target;
+  }
+
+  if (typeof target.exec === 'function') {
+    return target.populate('states').populate('defaultState');
+  }
+
+  await target.populate(WORKFLOW_POPULATE);
+  return target;
+};
 
 const normalizeStateIds = (states = []) =>
   [...new Set((Array.isArray(states) ? states : []).filter(Boolean))];
@@ -19,10 +31,7 @@ const validateStateIds = async (states = [], defaultState = null) => {
   const stateIds = normalizeStateIds(states);
 
   if (stateIds.length === 0) {
-    return {
-      stateIds: [],
-      defaultStateId: null,
-    };
+    throw new Error('At least one state is required in a workflow');
   }
 
   const validStates = await GlobalState.find({
@@ -42,7 +51,7 @@ const validateStateIds = async (states = [], defaultState = null) => {
 
 export const createWorkflow = async (req, res) => {
   try {
-    const { name, description, states, defaultState } = req.body;
+    const { name, states, defaultState } = req.body;
     const trimmedName = String(name || '').trim();
 
     if (!trimmedName) {
@@ -53,7 +62,6 @@ export const createWorkflow = async (req, res) => {
 
     const workflow = new Workflow({
       name: trimmedName,
-      description,
       states: stateIds,
       defaultState: defaultStateId,
     });
@@ -65,7 +73,10 @@ export const createWorkflow = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ error: 'Workflow name already exists' });
     }
-    if (error.message === 'One or more workflow states are invalid') {
+    if (
+      error.message === 'One or more workflow states are invalid' ||
+      error.message === 'At least one state is required in a workflow'
+    ) {
       return res.status(400).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
@@ -95,7 +106,7 @@ export const getWorkflowById = async (req, res) => {
 
 export const updateWorkflow = async (req, res) => {
   try {
-    const { name, description, states, defaultState, active } = req.body;
+    const { name, states, defaultState, active } = req.body;
     const updates = {};
 
     if (name !== undefined) {
@@ -106,10 +117,6 @@ export const updateWorkflow = async (req, res) => {
       }
 
       updates.name = trimmedName;
-    }
-
-    if (description !== undefined) {
-      updates.description = description;
     }
 
     if (active !== undefined) {
@@ -148,7 +155,10 @@ export const updateWorkflow = async (req, res) => {
     if (error.code === 11000) {
       return res.status(400).json({ error: 'Workflow name already exists' });
     }
-    if (error.message === 'One or more workflow states are invalid') {
+    if (
+      error.message === 'One or more workflow states are invalid' ||
+      error.message === 'At least one state is required in a workflow'
+    ) {
       return res.status(400).json({ error: error.message });
     }
     res.status(500).json({ error: error.message });
@@ -206,6 +216,11 @@ export const removeStateFromWorkflow = async (req, res) => {
     }
 
     workflow.states = workflow.states.filter((id) => String(id) !== String(stateId));
+
+    if (workflow.states.length === 0) {
+      return res.status(400).json({ error: 'A workflow must have at least one state' });
+    }
+
     if (String(workflow.defaultState || '') === String(stateId)) {
       workflow.defaultState = workflow.states[0] || null;
     }

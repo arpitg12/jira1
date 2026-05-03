@@ -2,7 +2,7 @@ import React, { useCallback, useEffect, useState } from 'react';
 import { useNavigate, useParams } from 'react-router-dom';
 import { IoAdd, IoPencil, IoSearch, IoTrash } from 'react-icons/io5';
 import AdminLayout from '../../layouts/AdminLayout';
-import { Card, Breadcrumb, Button, Modal } from '../../components/common';
+import { Card, Breadcrumb, Button, Modal, SearchableUserMultiSelect } from '../../components/common';
 import {
   createIssue,
   deleteIssue,
@@ -37,26 +37,6 @@ const userNames = (userList, emptyLabel = 'Unassigned') => {
   const names = uniqueUsers(userList).map((user) => user.username).filter(Boolean);
   return names.length > 0 ? names.join(', ') : emptyLabel;
 };
-
-const toggleSelection = (selectedIds, userId) =>
-  selectedIds.includes(userId)
-    ? selectedIds.filter((id) => id !== userId)
-    : [...selectedIds, userId];
-
-const CheckboxList = ({ users, selectedIds, onChange }) => (
-  <div className="max-h-40 space-y-2 overflow-y-auto rounded-lg border border-gray-300 px-4 py-3">
-    {users.map((member) => (
-      <label key={member._id} className="flex items-center gap-2 text-sm text-dark">
-        <input
-          type="checkbox"
-          checked={selectedIds.includes(member._id)}
-          onChange={() => onChange(toggleSelection(selectedIds, member._id))}
-        />
-        <span>{member.username}</span>
-      </label>
-    ))}
-  </div>
-);
 
 const ProjectDetail = () => {
   const { id } = useParams();
@@ -297,18 +277,22 @@ const ProjectDetail = () => {
       <div className="grid grid-cols-1 gap-4 md:grid-cols-2">
         <div>
           <label className="mb-2 block text-sm font-semibold text-dark">Assignees</label>
-          <CheckboxList
+          <SearchableUserMultiSelect
             users={users}
             selectedIds={issueForm.assignees}
             onChange={(nextValue) => setIssueForm({ ...issueForm, assignees: nextValue })}
+            emptyLabel="No users found"
+            placeholder="Select assignees"
           />
         </div>
         <div>
           <label className="mb-2 block text-sm font-semibold text-dark">Reviewers</label>
-          <CheckboxList
+          <SearchableUserMultiSelect
             users={users}
             selectedIds={issueForm.reviewAssignees}
             onChange={(nextValue) => setIssueForm({ ...issueForm, reviewAssignees: nextValue })}
+            emptyLabel="No users found"
+            placeholder="Select reviewers"
           />
         </div>
       </div>

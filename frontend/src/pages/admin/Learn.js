@@ -255,7 +255,7 @@ const Learn = () => {
           </div>
         </section>
 
-        {/* {feedback && (
+        {feedback && (
           <div
             className={`mt-4 rounded-2xl border px-4 py-3 text-sm ${
               feedback.type === 'success'
@@ -265,7 +265,7 @@ const Learn = () => {
           >
             {feedback.message}
           </div>
-        )} */}
+        )}
 
         {error && (
           <div className="mt-4 rounded-2xl border border-red-400/30 bg-red-500/15 px-4 py-3 text-sm text-red-100">

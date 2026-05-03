@@ -17,7 +17,6 @@ import {
 
 const emptyWorkflowForm = {
   name: '',
-  description: '',
   states: [],
   defaultState: '',
 };
@@ -25,8 +24,30 @@ const emptyWorkflowForm = {
 const emptyStateForm = {
   name: '',
   color: '#3b82f6',
-  description: '',
 };
+
+const getContrastTextColor = (color = '#3b82f6') => {
+  const normalized = color.replace('#', '');
+  const value = normalized.length === 3
+    ? normalized.split('').map((entry) => entry + entry).join('')
+    : normalized;
+
+  if (value.length !== 6) {
+    return '#ffffff';
+  }
+
+  const red = Number.parseInt(value.slice(0, 2), 16);
+  const green = Number.parseInt(value.slice(2, 4), 16);
+  const blue = Number.parseInt(value.slice(4, 6), 16);
+  const brightness = (red * 299 + green * 587 + blue * 114) / 1000;
+
+  return brightness > 160 ? '#111827' : '#ffffff';
+};
+
+const getStatePillStyle = (color) => ({
+  backgroundColor: color,
+  color: getContrastTextColor(color),
+});
 
 const WorkflowEditor = () => {
   const [workflows, setWorkflows] = useState([]);
@@ -86,11 +107,14 @@ const WorkflowEditor = () => {
       alert('Please enter workflow name');
       return;
     }
+    if (workflowForm.states.length === 0) {
+      alert('Please select at least one state');
+      return;
+    }
 
     try {
       await createWorkflow({
         name: workflowForm.name,
-        description: workflowForm.description,
         states: workflowForm.states,
         defaultState: workflowForm.defaultState || undefined,
       });
@@ -110,7 +134,6 @@ const WorkflowEditor = () => {
     try {
       await updateWorkflow(selectedWorkflow._id, {
         name: workflowForm.name,
-        description: workflowForm.description,
         defaultState: workflowForm.defaultState || null,
       });
       resetWorkflowForm();
@@ -126,7 +149,6 @@ const WorkflowEditor = () => {
     setSelectedWorkflow(workflow);
     setWorkflowForm({
       name: workflow.name,
-      description: workflow.description || '',
       states: workflow.states.map((state) => state._id),
       defaultState: workflow.defaultState?._id || workflow.states[0]?._id || '',
     });
@@ -189,7 +211,7 @@ const WorkflowEditor = () => {
       await createGlobalState({
         name: stateForm.name,
         color: stateForm.color,
-        description: stateForm.description,
+        description: '',
       });
       resetStateForm();
       setIsCreateStateModalOpen(false);
@@ -205,7 +227,6 @@ const WorkflowEditor = () => {
     setStateForm({
       name: state.name || '',
       color: state.color || '#3b82f6',
-      description: state.description || '',
     });
     setIsEditStateModalOpen(true);
   };
@@ -218,7 +239,7 @@ const WorkflowEditor = () => {
       await updateGlobalState(selectedState._id, {
         name: stateForm.name,
         color: stateForm.color,
-        description: stateForm.description,
+        description: '',
       });
       resetStateForm();
       setIsEditStateModalOpen(false);
@@ -299,19 +320,16 @@ const WorkflowEditor = () => {
                   {globalStates.map((state) => (
                     <div
                       key={state._id}
-                      className="rounded-2xl border border-white/10 bg-white/5 p-4"
+                      className="rounded-2xl border border-white/10 bg-white/5 p-3"
                     >
-                      <div className="flex items-start justify-between gap-3">
+                      <div className="flex items-center justify-between gap-3">
                         <div className="min-w-0">
                           <div
-                            className="inline-flex rounded-xl px-3 py-1.5 text-xs font-semibold text-white"
-                            style={{ backgroundColor: state.color }}
+                            className="inline-flex rounded-xl px-3 py-1.5 text-xs font-semibold"
+                            style={getStatePillStyle(state.color)}
                           >
                             {state.name}
                           </div>
-                          <p className="mt-2 text-xs leading-6 text-white/55">
-                            {state.description || 'No description added yet.'}
-                          </p>
                         </div>
                         <div className="flex shrink-0 items-center gap-2">
                           <button
@@ -354,23 +372,42 @@ const WorkflowEditor = () => {
             {workflows.length > 0 ? (
               workflows.map((workflow) => (
                 <Card key={workflow._id} title={workflow.name}>
-                  <p className="mb-2 text-sm text-gray-600">{workflow.description || 'No description'}</p>
-                  <p className="mb-4 text-xs text-white/50">
-                    Default state:{' '}
-                    <span className="font-semibold text-white/75">
-                      {workflow.defaultState?.name || workflow.states[0]?.name || 'Not set'}
-                    </span>
-                  </p>
+                  <div className="mb-4 flex flex-wrap items-start justify-between gap-3">
+                    <p className="text-xs text-white/50">
+                      Default state:{' '}
+                      <span className="font-semibold text-white/75">
+                        {workflow.defaultState?.name || workflow.states[0]?.name || 'Not set'}
+                      </span>
+                    </p>
+                    <div className="flex gap-2">
+                      <Button
+                        variant="secondary"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        onClick={() => openEditWorkflow(workflow)}
+                      >
+                        <IoPencil size={14} /> Edit
+                      </Button>
+                      <Button
+                        variant="danger"
+                        size="sm"
+                        className="flex items-center gap-2"
+                        onClick={() => handleDeleteWorkflow(workflow._id)}
+                      >
+                        <IoTrash size={14} /> Delete
+                      </Button>
+                    </div>
+                  </div>
 
-                  <div className="mb-6">
+                  <div>
                     <h3 className="mb-3 font-semibold text-dark">Workflow States</h3>
                     {workflow.states && workflow.states.length > 0 ? (
                       <div className="mb-4 flex flex-wrap items-center gap-2">
                         {workflow.states.map((state, idx) => (
                           <div key={state._id} className="flex items-center gap-2">
                             <div
-                              className="flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold text-white"
-                              style={{ backgroundColor: state.color }}
+                              className="flex items-center gap-2 whitespace-nowrap rounded-xl px-3 py-1.5 text-xs font-semibold"
+                              style={getStatePillStyle(state.color)}
                             >
                               {state.name}
                               {workflow.defaultState?._id === state._id && (
@@ -407,25 +444,6 @@ const WorkflowEditor = () => {
                       <IoAdd size={16} /> Add State
                     </Button>
                   </div>
-
-                  <div className="flex gap-2 border-t border-gray-200/80 pt-3">
-                    <Button
-                      variant="secondary"
-                      size="sm"
-                      className="flex items-center gap-2"
-                      onClick={() => openEditWorkflow(workflow)}
-                    >
-                      <IoPencil size={14} /> Edit
-                    </Button>
-                    <Button
-                      variant="danger"
-                      size="sm"
-                      className="flex items-center gap-2"
-                      onClick={() => handleDeleteWorkflow(workflow._id)}
-                    >
-                      <IoTrash size={14} /> Delete
-                    </Button>
-                  </div>
                 </Card>
               ))
             ) : (
@@ -459,17 +477,7 @@ const WorkflowEditor = () => {
               />
             </div>
             <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
-              <textarea
-                placeholder="Enter description (optional)"
-                value={workflowForm.description}
-                onChange={(e) => setWorkflowForm({ ...workflowForm, description: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
-                rows={3}
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Initial States (Optional)</label>
+              <label className="mb-2 block text-sm font-semibold text-dark">Initial States</label>
               <div className="max-h-40 space-y-2 overflow-y-auto">
                 {globalStates.map((state) => (
                   <label key={state._id} className="flex items-center gap-2">
@@ -480,14 +488,15 @@ const WorkflowEditor = () => {
                       className="h-4 w-4"
                     />
                     <span
-                      className="rounded px-3 py-1 text-sm font-semibold text-white"
-                      style={{ backgroundColor: state.color }}
+                      className="rounded px-3 py-1 text-sm font-semibold"
+                      style={getStatePillStyle(state.color)}
                     >
                       {state.name}
                     </span>
                   </label>
                 ))}
               </div>
+              <p className="mt-2 text-xs text-white/50">At least one state is required to create a workflow.</p>
             </div>
             <div>
               <label className="mb-2 block text-sm font-semibold text-dark">Default State</label>
@@ -541,16 +550,6 @@ const WorkflowEditor = () => {
                 onChange={(e) => setWorkflowForm({ ...workflowForm, name: e.target.value })}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
                 required
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
-              <textarea
-                placeholder="Enter description (optional)"
-                value={workflowForm.description}
-                onChange={(e) => setWorkflowForm({ ...workflowForm, description: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
-                rows={3}
               />
             </div>
             <div>
@@ -661,16 +660,6 @@ const WorkflowEditor = () => {
                 className="w-full rounded-lg border border-gray-300 px-4 py-2"
               />
             </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
-              <textarea
-                placeholder="What is this state used for?"
-                value={stateForm.description}
-                onChange={(e) => setStateForm({ ...stateForm, description: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
-                rows={3}
-              />
-            </div>
             <div className="flex gap-2 pt-4">
               <Button variant="primary" type="submit">Create State</Button>
               <Button
@@ -714,16 +703,6 @@ const WorkflowEditor = () => {
                 value={stateForm.color}
                 onChange={(e) => setStateForm({ ...stateForm, color: e.target.value })}
                 className="w-full rounded-lg border border-gray-300 px-4 py-2"
-              />
-            </div>
-            <div>
-              <label className="mb-2 block text-sm font-semibold text-dark">Description</label>
-              <textarea
-                placeholder="What is this state used for?"
-                value={stateForm.description}
-                onChange={(e) => setStateForm({ ...stateForm, description: e.target.value })}
-                className="w-full rounded-lg border border-gray-300 px-4 py-2 outline-none focus:border-primary"
-                rows={3}
               />
             </div>
             <div className="flex gap-2 pt-4">

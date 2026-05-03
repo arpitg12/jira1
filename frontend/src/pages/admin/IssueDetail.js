@@ -14,7 +14,7 @@ import {
   IoTrash,
 } from 'react-icons/io5';
 import AdminLayout from '../../layouts/AdminLayout';
-import { Button } from '../../components/common';
+import { Button, SearchableUserMultiSelect } from '../../components/common';
 import { MentionTextarea } from '../../components/common/MentionTextarea';
 import { useAuth } from '../../context/AuthContext';
 import {
@@ -148,11 +148,6 @@ const readFileAsDataUrl = (file) =>
     reader.readAsDataURL(file);
   });
 
-const toggleSelection = (selectedIds, userId) =>
-  selectedIds.includes(userId)
-    ? selectedIds.filter((id) => id !== userId)
-    : [...selectedIds, userId];
-
 const renderTextWithMentions = (text) => {
   const parts = String(text || '').split(/(@[a-zA-Z0-9._-]+)/g);
   return parts.map((part, index) =>
@@ -208,26 +203,6 @@ const CommentActions = ({ onReply, onEdit, onDelete, canManage = true, showReply
           Delete
         </button>
       </>
-    )}
-  </div>
-);
-
-const MultiUserChecklist = ({ users, selectedIds, onChange, emptyLabel }) => (
-  <div className="max-h-36 min-w-[220px] space-y-2 overflow-y-auto rounded-xl border border-white/10 bg-[#0d1015] p-3 text-left">
-    {users.length > 0 ? (
-      users.map((user) => (
-        <label key={user._id} className="flex items-center gap-2 text-sm text-white/80">
-          <input
-            type="checkbox"
-            checked={selectedIds.includes(user._id)}
-            onChange={() => onChange(toggleSelection(selectedIds, user._id))}
-            className="rounded border-white/20 bg-transparent text-primary"
-          />
-          <span>{user.username}</span>
-        </label>
-      ))
-    ) : (
-      <div className="text-xs text-white/45">{emptyLabel}</div>
     )}
   </div>
 );
@@ -1076,11 +1051,12 @@ const IssueDetail = () => {
 
                 <DetailRow label="Assignees" wrap>
                   {isEditing ? (
-                    <MultiUserChecklist
+                    <SearchableUserMultiSelect
                       users={users}
                       selectedIds={editForm.assignees}
                       onChange={(nextValue) => setEditForm((current) => ({ ...current, assignees: nextValue }))}
                       emptyLabel="No users available"
+                      placeholder="Select assignees"
                     />
                   ) : (
                     <UserPills users={currentAssignees} emptyLabel="No assignees" />
@@ -1089,11 +1065,12 @@ const IssueDetail = () => {
 
                 <DetailRow label="Reviewers" wrap>
                   {isEditing ? (
-                    <MultiUserChecklist
+                    <SearchableUserMultiSelect
                       users={users}
                       selectedIds={editForm.reviewAssignees}
                       onChange={(nextValue) => setEditForm((current) => ({ ...current, reviewAssignees: nextValue }))}
                       emptyLabel="No users available"
+                      placeholder="Select reviewers"
                     />
                   ) : (
                     <UserPills users={currentReviewers} emptyLabel="No reviewers" />
