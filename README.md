@@ -227,17 +227,3 @@ Example production frontend env:
 REACT_APP_API_URL=http://your-server-ip/api
 REACT_APP_UPLOADS_BASE_URL=http://your-server-ip
 ```
-
-## Resume-Ready Project Summary
-
-Built a full-stack Jira-inspired collaboration platform to manage projects, issues, workflows, access control, notifications, and internal knowledge sharing within a single role-based workspace using React, Node.js, Express, MongoDB, and JWT authentication.
-
-## Documentation
-
-For a deeper technical walkthrough, see:
-
-- [APPLICATION_COMPLETE_GUIDE.md](./APPLICATION_COMPLETE_GUIDE.md)
-
-## License
-
-This project is intended for portfolio, learning, and demonstration use unless you choose to add a separate license.
