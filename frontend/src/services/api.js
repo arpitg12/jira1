@@ -238,3 +238,25 @@ export const updateNotificationPreferences = (notificationSettings) =>
     method: 'PUT',
     body: JSON.stringify({ notificationSettings }),
   });
+
+export const createLearnArticle = (data) =>
+  apiCall('/learn', {
+    method: 'POST',
+    body: JSON.stringify(data),
+  });
+
+export const getLearnArticles = (search = '') =>
+  apiCall(`/learn${search ? `?search=${encodeURIComponent(search)}` : ''}`);
+
+export const getLearnArticleById = (id) => apiCall(`/learn/${id}`);
+
+export const updateLearnArticle = (id, data) =>
+  apiCall(`/learn/${id}`, {
+    method: 'PUT',
+    body: JSON.stringify(data),
+  });
+
+export const deleteLearnArticle = (id) =>
+  apiCall(`/learn/${id}`, {
+    method: 'DELETE',
+  });

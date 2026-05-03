@@ -12,6 +12,7 @@ const Projects = lazy(() => import('./pages/admin/Projects'));
 const ProjectDetail = lazy(() => import('./pages/admin/ProjectDetail'));
 const Members = lazy(() => import('./pages/admin/Members'));
 const WorkflowEditor = lazy(() => import('./pages/admin/WorkflowEditor'));
+const Learn = lazy(() => import('./pages/admin/Learn'));
 
 const LoadingFallback = () => (
   <div className="ui-dark-page flex min-h-screen items-center justify-center">
@@ -69,6 +70,7 @@ const AppRoutes = () => {
           <Route path="/admin/issues" element={<Issues />} />
           <Route path="/admin/projects" element={<Projects />} />
           <Route path="/admin/projects/:id" element={<ProjectDetail />} />
+          <Route path="/admin/learn" element={<Learn />} />
 
           <Route element={<AdminOnlyRoute />}>
             <Route path="/admin/members" element={<Members />} />

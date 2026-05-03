@@ -11,6 +11,7 @@ import globalStateRoutes from './routes/globalStateRoutes.js';
 import projectRoutes from './routes/projectRoutes.js';
 import pushRoutes from './routes/pushRoutes.js';
 import notificationRoutes from './routes/notificationRoutes.js';
+import learnArticleRoutes from './routes/learnArticleRoutes.js';
 import { migrateLegacyIssueAssignments } from './utils/migrateLegacyIssueAssignments.js';
 
 const app = express();
@@ -47,6 +48,7 @@ app.use('/api/states', globalStateRoutes);
 app.use('/api/projects', projectRoutes);
 app.use('/api/push', pushRoutes);
 app.use('/api/notifications', notificationRoutes);
+app.use('/api/learn', learnArticleRoutes);
 
 app.use((err, req, res, next) => {
   console.error(err.stack);

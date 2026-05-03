@@ -4,6 +4,7 @@ import { Sidebar, Header } from '../components/common';
 import { useAuth } from '../context/AuthContext';
 import {
   IoCheckmark,
+  IoLibrary,
   IoFolderOpen,
   IoHome,
   IoPeople,
@@ -21,6 +22,7 @@ const AdminLayout = ({ children }) => {
         { label: 'Dashboard', href: '/admin/dashboard', icon: <IoHome /> },
         { label: 'Issues', href: '/admin/issues', icon: <IoCheckmark /> },
         { label: 'Projects', href: '/admin/projects', icon: <IoFolderOpen /> },
+        { label: 'Learn', href: '/admin/learn', icon: <IoLibrary /> },
         { label: 'Members', href: '/admin/members', icon: <IoPeople /> },
         { label: 'Workflows', href: '/admin/workflows', icon: <IoSettings /> },
       ]
@@ -28,6 +30,7 @@ const AdminLayout = ({ children }) => {
         { label: 'Dashboard', href: '/admin/dashboard', icon: <IoHome /> },
         { label: 'Issues', href: '/admin/issues', icon: <IoCheckmark /> },
         { label: 'Projects', href: '/admin/projects', icon: <IoFolderOpen /> },
+        { label: 'Learn', href: '/admin/learn', icon: <IoLibrary /> },
       ];
 
   const handleLogout = () => {
