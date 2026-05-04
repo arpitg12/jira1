@@ -101,16 +101,12 @@ import { migrateLegacyIssueAssignments } from './utils/migrateLegacyIssueAssignm
 
 const app = express();
 
-/* -------------------- CORS FIRST -------------------- */
-const corsOptions = {
-  origin: [
-    'https://jiradeploy-2rdu93efu-arpits-projects-fba75aaa.vercel.app',
-  ],
-  credentials: true,
-};
+/* -------------------- VERY IMPORTANT FOR RENDER -------------------- */
+app.set('trust proxy', 1);
 
-app.use(cors(corsOptions));
-app.options('*', cors(corsOptions));
+/* -------------------- CORS FIRST -------------------- */
+app.use(cors());
+app.options('*', cors());
 
 /* -------------------- SECURITY -------------------- */
 app.use(
