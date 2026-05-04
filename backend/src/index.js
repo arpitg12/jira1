@@ -1,9 +1,97 @@
+// import express from 'express';
+// import cors from 'cors';
+// import helmet from 'helmet';
+// import path from 'path';
+// import connectDB from './config/database.js';
+// import { env } from './config/env.js';
+// import userRoutes from './routes/userRoutes.js';
+// import workflowRoutes from './routes/workflowRoutes.js';
+// import issueRoutes from './routes/issueRoutes.js';
+// import globalStateRoutes from './routes/globalStateRoutes.js';
+// import projectRoutes from './routes/projectRoutes.js';
+// import pushRoutes from './routes/pushRoutes.js';
+// import notificationRoutes from './routes/notificationRoutes.js';
+// import learnArticleRoutes from './routes/learnArticleRoutes.js';
+// import { migrateLegacyIssueAssignments } from './utils/migrateLegacyIssueAssignments.js';
+
+// const app = express();
+
+// app.use(cors({ origin: true, credentials: true }));
+// app.options('*', cors());
+
+// app.use(
+//   helmet({
+//     crossOriginResourcePolicy: false,
+//   })
+// );
+// app.use(express.json({ limit: env.bodyLimit }));
+// app.use(express.urlencoded({ extended: true }));
+
+// connectDB()
+//   .then(() => migrateLegacyIssueAssignments())
+//   .catch((error) => {
+//     console.error('Startup failed:', error.message);
+//     process.exit(1);
+//   });
+
+// // app.use(helmet());
+// // app.use(
+// //   cors({
+// //     origin: true,
+// //     credentials: true,
+// //     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+// //     allowedHeaders: ['Content-Type', 'Authorization'],
+// //   })
+// // );
+
+// // app.use(express.json({ limit: env.bodyLimit }));
+// // app.use(express.urlencoded({ extended: true }));
+// app.use('/uploads', express.static(path.resolve(env.uploadsDir)));
+
+// app.get('/api/health', (req, res) => {
+//   res.json({ status: 'API is running', timestamp: new Date() });
+// });
+
+// app.use('/api/users', userRoutes);
+// app.use('/api/workflows', workflowRoutes);
+// app.use('/api/issues', issueRoutes);
+// app.use('/api/states', globalStateRoutes);
+// app.use('/api/projects', projectRoutes);
+// app.use('/api/push', pushRoutes);
+// app.use('/api/notifications', notificationRoutes);
+// app.use('/api/learn', learnArticleRoutes);
+
+// app.use((err, req, res, next) => {
+//   console.error(err.stack);
+//   res.status(err.status || 500).json({
+//     error: err.message || 'Internal Server Error',
+//     status: err.status || 500,
+//   });
+// });
+
+// app.use((req, res) => {
+//   res.status(404).json({ error: 'Route not found' });
+// });
+
+// const PORT = process.env.PORT || env.port;
+
+// app.listen(PORT, () => {
+//   console.log(`Server running on port ${PORT}`);
+//   console.log(`Environment: ${env.nodeEnv}`);
+// });
+
+// export default app;
+
+
+
+
+
 import express from 'express';
-import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import connectDB from './config/database.js';
 import { env } from './config/env.js';
+
 import userRoutes from './routes/userRoutes.js';
 import workflowRoutes from './routes/workflowRoutes.js';
 import issueRoutes from './routes/issueRoutes.js';
@@ -16,42 +104,46 @@ import { migrateLegacyIssueAssignments } from './utils/migrateLegacyIssueAssignm
 
 const app = express();
 
-app.use(cors({ origin: true, credentials: true }));
-app.options('*', cors());
+/* -------------------- CORS (manual & guaranteed) -------------------- */
+app.use((req, res, next) => {
+  const origin = req.headers.origin;
 
+  // allow all vercel previews + your domain
+  if (origin && origin.includes('vercel.app')) {
+    res.header('Access-Control-Allow-Origin', origin);
+  }
+
+  res.header('Access-Control-Allow-Credentials', 'true');
+  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
+  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
+
+  if (req.method === 'OPTIONS') {
+    return res.sendStatus(200);
+  }
+
+  next();
+});
+
+/* -------------------- Security -------------------- */
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
   })
 );
+
+/* -------------------- Body parsers -------------------- */
 app.use(express.json({ limit: env.bodyLimit }));
 app.use(express.urlencoded({ extended: true }));
 
-connectDB()
-  .then(() => migrateLegacyIssueAssignments())
-  .catch((error) => {
-    console.error('Startup failed:', error.message);
-    process.exit(1);
-  });
-
-// app.use(helmet());
-// app.use(
-//   cors({
-//     origin: true,
-//     credentials: true,
-//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-//     allowedHeaders: ['Content-Type', 'Authorization'],
-//   })
-// );
-
-// app.use(express.json({ limit: env.bodyLimit }));
-// app.use(express.urlencoded({ extended: true }));
+/* -------------------- Static -------------------- */
 app.use('/uploads', express.static(path.resolve(env.uploadsDir)));
 
+/* -------------------- Health -------------------- */
 app.get('/api/health', (req, res) => {
   res.json({ status: 'API is running', timestamp: new Date() });
 });
 
+/* -------------------- Routes -------------------- */
 app.use('/api/users', userRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/issues', issueRoutes);
@@ -61,6 +153,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/learn', learnArticleRoutes);
 
+/* -------------------- Errors -------------------- */
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
@@ -72,6 +165,14 @@ app.use((err, req, res, next) => {
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
+
+/* -------------------- DB & Server -------------------- */
+connectDB()
+  .then(() => migrateLegacyIssueAssignments())
+  .catch((error) => {
+    console.error('Startup failed:', error.message);
+    process.exit(1);
+  });
 
 const PORT = process.env.PORT || env.port;
 
