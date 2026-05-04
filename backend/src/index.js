@@ -104,9 +104,29 @@ const app = express();
 /* -------------------- VERY IMPORTANT FOR RENDER -------------------- */
 app.set('trust proxy', 1);
 
-/* -------------------- CORS FIRST -------------------- */
-app.use(cors());
-app.options('*', cors());
+const allowedOrigins = [
+  'https://jiradeploy-2rdu93efu-arpits-projects-fba75aaa.vercel.app',
+];
+
+app.use(
+  cors({
+    origin: function (origin, callback) {
+      if (!origin) return callback(null, true); // mobile apps, curl, etc.
+      if (allowedOrigins.includes(origin)) {
+        return callback(null, true);
+      }
+      return callback(new Error('Not allowed by CORS'));
+    },
+    credentials: true,
+    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+    allowedHeaders: ['Content-Type', 'Authorization'],
+  })
+);
+
+// ✅ THIS is important
+app.options('*', (req, res) => {
+  res.sendStatus(204);
+});
 
 /* -------------------- SECURITY -------------------- */
 app.use(
