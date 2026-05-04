@@ -16,6 +16,17 @@ import { migrateLegacyIssueAssignments } from './utils/migrateLegacyIssueAssignm
 
 const app = express();
 
+app.use(cors({ origin: true, credentials: true }));
+app.options('*', cors());
+
+app.use(
+  helmet({
+    crossOriginResourcePolicy: false,
+  })
+);
+app.use(express.json({ limit: env.bodyLimit }));
+app.use(express.urlencoded({ extended: true }));
+
 connectDB()
   .then(() => migrateLegacyIssueAssignments())
   .catch((error) => {
@@ -23,18 +34,18 @@ connectDB()
     process.exit(1);
   });
 
-app.use(helmet());
-app.use(
-  cors({
-    origin: true,
-    credentials: true,
-    methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization'],
-  })
-);
+// app.use(helmet());
+// app.use(
+//   cors({
+//     origin: true,
+//     credentials: true,
+//     methods: ['GET', 'POST', 'PUT', 'DELETE', 'OPTIONS'],
+//     allowedHeaders: ['Content-Type', 'Authorization'],
+//   })
+// );
 
-app.use(express.json({ limit: env.bodyLimit }));
-app.use(express.urlencoded({ extended: true }));
+// app.use(express.json({ limit: env.bodyLimit }));
+// app.use(express.urlencoded({ extended: true }));
 app.use('/uploads', express.static(path.resolve(env.uploadsDir)));
 
 app.get('/api/health', (req, res) => {
@@ -62,8 +73,10 @@ app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-app.listen(env.port, () => {
-  console.log(`Server running on port ${env.port}`);
+const PORT = process.env.PORT || env.port;
+
+app.listen(PORT, () => {
+  console.log(`Server running on port ${PORT}`);
   console.log(`Environment: ${env.nodeEnv}`);
 });
 
