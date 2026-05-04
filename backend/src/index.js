@@ -82,11 +82,8 @@
 
 // export default app;
 
-
-
-
-
 import express from 'express';
+import cors from 'cors';
 import helmet from 'helmet';
 import path from 'path';
 import connectDB from './config/database.js';
@@ -104,46 +101,37 @@ import { migrateLegacyIssueAssignments } from './utils/migrateLegacyIssueAssignm
 
 const app = express();
 
-/* -------------------- CORS (manual & guaranteed) -------------------- */
-app.use((req, res, next) => {
-  const origin = req.headers.origin;
+/* -------------------- CORS FIRST -------------------- */
+const corsOptions = {
+  origin: [
+    'https://jiradeploy-2rdu93efu-arpits-projects-fba75aaa.vercel.app',
+  ],
+  credentials: true,
+};
 
-  // allow all vercel previews + your domain
-  if (origin && origin.includes('vercel.app')) {
-    res.header('Access-Control-Allow-Origin', origin);
-  }
+app.use(cors(corsOptions));
+app.options('*', cors(corsOptions));
 
-  res.header('Access-Control-Allow-Credentials', 'true');
-  res.header('Access-Control-Allow-Methods', 'GET,POST,PUT,DELETE,OPTIONS');
-  res.header('Access-Control-Allow-Headers', 'Content-Type, Authorization');
-
-  if (req.method === 'OPTIONS') {
-    return res.sendStatus(200);
-  }
-
-  next();
-});
-
-/* -------------------- Security -------------------- */
+/* -------------------- SECURITY -------------------- */
 app.use(
   helmet({
     crossOriginResourcePolicy: false,
   })
 );
 
-/* -------------------- Body parsers -------------------- */
+/* -------------------- BODY PARSERS -------------------- */
 app.use(express.json({ limit: env.bodyLimit }));
 app.use(express.urlencoded({ extended: true }));
 
-/* -------------------- Static -------------------- */
+/* -------------------- STATIC -------------------- */
 app.use('/uploads', express.static(path.resolve(env.uploadsDir)));
 
-/* -------------------- Health -------------------- */
+/* -------------------- HEALTH -------------------- */
 app.get('/api/health', (req, res) => {
   res.json({ status: 'API is running', timestamp: new Date() });
 });
 
-/* -------------------- Routes -------------------- */
+/* -------------------- ROUTES -------------------- */
 app.use('/api/users', userRoutes);
 app.use('/api/workflows', workflowRoutes);
 app.use('/api/issues', issueRoutes);
@@ -153,7 +141,7 @@ app.use('/api/push', pushRoutes);
 app.use('/api/notifications', notificationRoutes);
 app.use('/api/learn', learnArticleRoutes);
 
-/* -------------------- Errors -------------------- */
+/* -------------------- ERRORS -------------------- */
 app.use((err, req, res, next) => {
   console.error(err.stack);
   res.status(err.status || 500).json({
@@ -162,11 +150,12 @@ app.use((err, req, res, next) => {
   });
 });
 
+/* -------------------- 404 LAST -------------------- */
 app.use((req, res) => {
   res.status(404).json({ error: 'Route not found' });
 });
 
-/* -------------------- DB & Server -------------------- */
+/* -------------------- DB & SERVER -------------------- */
 connectDB()
   .then(() => migrateLegacyIssueAssignments())
   .catch((error) => {
