@@ -385,7 +385,6 @@ const Issues = () => {
                 : 'You can see every ticket inside the projects your account can access.'}
             </p>
           </div>
-          {isAdmin && (
             <Button
               variant="primary"
               size="sm"
@@ -394,7 +393,6 @@ const Issues = () => {
             >
               <IoAdd size={14} /> Create
             </Button>
-          )}
         </div>
 
         {error && (
